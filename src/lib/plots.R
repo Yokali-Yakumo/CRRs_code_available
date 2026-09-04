@@ -180,8 +180,14 @@ cluster_binary_heatmap <- function(roi_split, roi_list, labels, out_dir,
                             values_to = "Count") %>%
         tidyr::separate(Feature, into = c("Mark", "Time"), sep = "_")
     df_long$Time <- factor(df_long$Time, levels = time_labels)
-    df_long$Cluster <- factor(df_long$Cluster,
-                              levels = rev(sort(unique(df_long$Cluster))))
+    cl_ids <- unique(df_long$Cluster)
+    if (all(grepl("^cluster[0-9]+$", cl_ids))) {
+        ord <- paste0("cluster", sort(as.integer(sub("^cluster", "", cl_ids)),
+                                      decreasing = TRUE))
+    } else {
+        ord <- rev(sort(cl_ids))
+    }
+    df_long$Cluster <- factor(df_long$Cluster, levels = ord)
 
     p <- ggplot2::ggplot(df_long,
                          ggplot2::aes(x = Time, y = Cluster, fill = Count)) +
