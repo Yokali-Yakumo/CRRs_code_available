@@ -367,8 +367,7 @@ build_roi_list <- function(roi_split, all_bins, n_cores = 1L,
         tab1  <- all_bins[[1]][idx, mark_col_idx]
         tab2  <- all_bins[[2]][idx, mark_col_idx]
         tab3  <- all_bins[[3]][idx, mark_col_idx]
-        out <- abind::abind(tab1, tab2, tab3, along = 3)
-        list(out)
+        abind::abind(tab1, tab2, tab3, along = 3)
     }
     n_cores <- max(1L, as.integer(n_cores))
     use_fork <- n_cores > 1L && .Platform$OS.type == "unix" && nrow(roi_split) > 1L
