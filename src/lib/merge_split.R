@@ -12,21 +12,25 @@
 # 1. Merge the three stage CRR BEDs (d0/d7/d15) into non-redundant intervals.
 #
 # Each input BED has 4 columns: chr, start, end, name. Every pair of CRRs that
-# shares at least 1 bp is linked; connected components of the resulting overlap
-# graph define merged intervals (min start .. max end). Returns a data.frame
-# with columns chr, start, end, merged_peaks (contributing stage names joined by
+# overlaps is linked; connected components of the resulting overlap graph
+# define merged intervals (min start .. max end). Returns a data.frame with
+# columns chr, start, end, merged_peaks (contributing stage names joined by
 # "|") and time_points (contributing stages, e.g. "d0_d7_d15").
+#
+# IMPORTANT (fidelity note): the original script fed the BED coordinates
+# directly to GRanges/findOverlaps, i.e. with GRanges' closed-interval
+# semantics applied to the 0-based BED numbers. This makes two CRRs that merely
+# touch at a coordinate boundary count as overlapping. That behaviour is
+# preserved here on purpose, because the whole downstream chain (split, ROI
+# feature extraction) was tuned against the ROI sets produced this way.
 merge_three_time_beds <- function(d0_bed, d7_bed, d15_bed) {
     require_pkgs(c("GenomicRanges", "igraph", "dplyr"))
 
-    # Convert BED intervals (0-based, half-open: bases [start, end-1]) into
-    # GRanges (1-based, closed) so that overlap tests use the same >= 1 bp
-    # semantics as bedtools. start -> start + 1, end stays as the exclusive end.
     to_gr <- function(bed, time) {
         if (is.null(bed) || nrow(bed) == 0L) return(NULL)
         g <- GenomicRanges::GRanges(
             seqnames = bed$chr,
-            ranges   = IRanges::IRanges(start = bed$start + 1L, end = bed$end)
+            ranges   = IRanges::IRanges(start = bed$start, end = bed$end)
         )
         g$name <- if ("name" %in% colnames(bed)) as.character(bed$name) else
             paste0(time, "_peak", seq_along(g))
@@ -40,7 +44,7 @@ merge_three_time_beds <- function(d0_bed, d7_bed, d15_bed) {
     }
     names(all_gr) <- as.character(seq_along(all_gr))
 
-    # Overlap graph: connect every pair of ranges that shares at least 1 bp
+    # Overlap graph: connect every pair of ranges reported as overlapping
     # (query < subject to avoid duplicates and self-loops).
     hits <- GenomicRanges::findOverlaps(all_gr, all_gr, ignore.strand = TRUE,
                                         type = "any")
@@ -60,8 +64,8 @@ merge_three_time_beds <- function(d0_bed, d7_bed, d15_bed) {
         sub <- all_gr[idx]
         data.frame(
             chr          = as.character(GenomicRanges::seqnames(sub)[1]),
-            start        = min(GenomicRanges::start(sub)) - 1L,  # back to 0-based
-            end          = max(GenomicRanges::end(sub)),         # exclusive end
+            start        = min(GenomicRanges::start(sub)),
+            end          = max(GenomicRanges::end(sub)),
             merged_peaks = paste(sub$name, collapse = "|"),
             time_points  = paste(sort(unique(sub$time)), collapse = "_"),
             stringsAsFactors = FALSE

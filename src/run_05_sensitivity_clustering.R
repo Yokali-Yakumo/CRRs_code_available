@@ -115,6 +115,22 @@ out_tab_dir <- file.path(DIR_TABLES, "clustering_sensitivity")
 out_fig_dir <- file.path(DIR_FIGS, "clustering_sensitivity")
 ensure_dir(out_tab_dir); ensure_dir(out_fig_dir)
 
+# Write the per-cell metrics in the two-column Method/Value layout used by the
+# original Sensitivity.R output files (output/Sen.out/*.output.tsv).
+write_cell_tsv <- function(row_out, threshold.emb, resolution, k.param) {
+    long <- data.frame(
+        Method = c("Silhouette", "eta2", "CH", "DB", "Bootstrap_ARI", "clusters"),
+        Value  = as.numeric(row_out[1, c("Silhouette", "eta2", "CH", "DB",
+                                         "Bootstrap_ARI", "n_clusters")]),
+        stringsAsFactors = FALSE)
+    cell_file <- file.path(out_tab_dir, sprintf(
+        "threshold_%s_resolution_%s_k.param_%s.output.tsv",
+        threshold.emb, resolution, k.param))
+    write.table(long, file = cell_file, sep = "\t", quote = FALSE,
+                row.names = FALSE, col.names = TRUE)
+    invisible(cell_file)
+}
+
 cli_args <- commandArgs(trailingOnly = TRUE)
 if (length(cli_args) >= 3L) {
     # Single-cell mode (compatible with the original Sensitivity.R interface,
@@ -126,11 +142,7 @@ if (length(cli_args) >= 3L) {
     message("Cell done: threshold=", threshold.emb, " resolution=", resolution,
             " k.param=", k.param)
     print(row_out)
-    cell_file <- file.path(out_tab_dir, sprintf(
-        "threshold_%s_resolution_%s_k.param_%s.output.tsv",
-        threshold.emb, resolution, k.param))
-    write.table(row_out, file = cell_file, sep = "\t", quote = FALSE,
-                row.names = FALSE)
+    cell_file <- write_cell_tsv(row_out, threshold.emb, resolution, k.param)
     message("Wrote per-cell metrics to ", cell_file)
 } else {
     # Full grid mode.
@@ -144,8 +156,11 @@ if (length(cli_args) >= 3L) {
         message(sprintf("[%d/%d] threshold=%.1f resolution=%.1f k.param=%d",
                         i, nrow(grid), grid$threshold.emb[i],
                         grid$resolution[i], grid$k.param[i]))
-        all_rows[[i]] <- score_cell(grid$threshold.emb[i], grid$resolution[i],
-                                    grid$k.param[i])
+        row_out <- score_cell(grid$threshold.emb[i], grid$resolution[i],
+                              grid$k.param[i])
+        write_cell_tsv(row_out, grid$threshold.emb[i], grid$resolution[i],
+                       grid$k.param[i])
+        all_rows[[i]] <- row_out
     }
     metrics <- do.call(rbind, all_rows)
     grid_file <- file.path(out_tab_dir, "grid_metrics.tsv")

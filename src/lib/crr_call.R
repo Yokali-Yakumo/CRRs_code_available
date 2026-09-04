@@ -56,7 +56,9 @@ stitch_stage_segments <- function(window_bed, binary_mat, mark = "H3K27me3",
     }
     out <- do.call(rbind, work)
     rownames(out) <- NULL
-    out[order(out$chr, out$start), , drop = FALSE]
+    # Keep the original chromosome order (chr1..chr22, chrX) instead of a
+    # lexicographic sort, matching the row order of the original analysis.
+    out[order(factor(out$chr, levels = chroms), out$start), , drop = FALSE]
 }
 
 # Stitch all three stages. Returns a named list (msc / adi_7d / adi_15d) of

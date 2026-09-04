@@ -12,7 +12,7 @@ The pipeline covers **only**:
 2. **Integration and ROI construction** — merging CRRs across the three
    differentiation stages (MSC / preadipocyte / adipocyte), splitting long
    merged intervals, and producing one unified set of ROIs.
-3. **Feature matrix** — 302-dimensional features (spatial, temporal, pairwise
+3. **Feature matrix** — 299-dimensional features (spatial, temporal, pairwise
    Jaccard, histone-dynamics concordance) per ROI.
 4. **QC + (partial) standardization + MFA**.
 5. **Graph-based clustering** (Seurat, Leiden) on the MFA embedding → **7 CRR
@@ -239,6 +239,10 @@ following intentional differences apply:
    * the length sensitivity no longer depends on an external loop variable.
 4. **`rename_roi_origins` uses GRanges overlaps** instead of one `bedtools`
    intersect per ROI (identical ≥ 1 bp overlap semantics, vectorized).
+   Likewise, `merge_three_time_beds` keeps the original scripts' exact overlap
+   behaviour (GRanges closed-interval semantics applied to the BED numbers, so
+   CRRs that only touch at a boundary coordinate are merged) because the whole
+   downstream chain was tuned on the ROI sets produced that way.
 5. **Time labels**: the length-sensitivity heatmap previously labelled the
    third time point "d14" although the data/features use "d15"; this cosmetic
    inconsistency is resolved in favour of `d15` everywhere.
@@ -251,7 +255,9 @@ following intentional differences apply:
    affect clustering).
 8. **Sensitivity #2 performance**: the MFA is computed once on the main-run
    feature matrix and reused across the grid (identical MFA object per
-   combination as before; no change to results).
+   combination as before; no change to results). The bootstrap ARI replicates
+   consume the global RNG stream after a single `set.seed`, exactly like the
+   original function (no per-replicate seeding).
 9. **Length thresholds**: sensitivity #1 evaluates `≥ 4/5/7/9` bins (the
    original shipped script used `5/7/9`; `4` was added to match the
    manuscript's top-30% threshold).

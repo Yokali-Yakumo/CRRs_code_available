@@ -123,10 +123,14 @@ extract_dist_subset <- function(diss, idx) {
 # re-run the graph clustering on the sub-sample and compare the obtained
 # labels to the reference labels of the corresponding rows with the adjusted
 # Rand index (ARI). Returns one ARI per bootstrap replicate.
+#
+# Fidelity note: exactly like the original function, no random.seed is passed
+# to FindClusters - every replicate consumes the global RNG stream after the
+# initial set.seed(seed), so the replicate clusterings follow the original RNG
+# sequence (modulo Seurat version differences).
 bootstrap_seurat_ari <- function(data, reference_labels, nboot = SENS2_NBOOT,
                                  sample_frac = SENS2_SAMPLE_FRAC,
-                                 resolution = 0.4, seed = SEED,
-                                 k.param = 20L) {
+                                 resolution = 0.4, seed = SEED) {
     require_pkgs(c("Seurat", "mclust"))
     set.seed(seed)
     aris <- numeric(nboot)
@@ -138,10 +142,8 @@ bootstrap_seurat_ari <- function(data, reference_labels, nboot = SENS2_NBOOT,
         obj_sub[["pca"]] <- CreateDimReducObject(embeddings = data_sub, key = "PC_",
                                                  assay = DefaultAssay(obj_sub))
         obj_sub <- FindNeighbors(obj_sub, reduction = "pca",
-                                 dims = seq_len(ncol(data_sub)),
-                                 k.param = k.param, verbose = FALSE)
-        obj_sub <- FindClusters(obj_sub, resolution = resolution,
-                                random.seed = seed, verbose = FALSE)
+                                 dims = seq_len(ncol(data_sub)), verbose = FALSE)
+        obj_sub <- FindClusters(obj_sub, resolution = resolution, verbose = FALSE)
         labels_sub <- as.character(Seurat::Idents(obj_sub))
         # reference labels are matched positionally: the sub-sampled rows are a
         # subset of the original rows, so their labels are reference_labels[idx].

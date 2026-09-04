@@ -8,7 +8,7 @@
 #       -> per-stage CRR BEDs
 #       -> cross-stage merge + long-ROI split (unified ROI table)
 #       -> ROI x 8-mark x 3-time binary arrays
-#       -> 302-dim feature matrix
+#       -> 299-dim feature matrix (before QC additions/removals)
 #       -> QC / NA handling / correlation pruning / (partial) standardization
 #       -> MFA (6 feature groups) + Seurat graph clustering
 #       -> optional cosmetic cluster relabelling
