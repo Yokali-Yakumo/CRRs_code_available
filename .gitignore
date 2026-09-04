@@ -1,0 +1,29 @@
+# ============================================================
+# Raw input data. The files in input/ are large and are NOT
+# version-controlled. See input/README.md for their format,
+# provenance and how to regenerate them.
+# ============================================================
+input/*
+!input/README.md
+
+# ============================================================
+# Intermediate R workspaces and final outputs
+# ============================================================
+work/
+output/
+
+# ============================================================
+# Original (Chinese-commented) analysis scripts, archived here
+# for reference only. They are intentionally not published.
+# ============================================================
+_original_zh/
+
+# ============================================================
+# R and editor cruft
+# ============================================================
+.Rhistory
+.RData
+.Rproj.user/
+*.Rproj
+.DS_Store
+*.log
