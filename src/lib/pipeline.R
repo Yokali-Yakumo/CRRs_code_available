@@ -46,10 +46,12 @@ run_feature_chain <- function(segments_all, window_bed, matrices,
     roi_info <- merged[, c("chr", "start", "end")]
     roi_info$peak <- paste0(merged$time_points, "-", merged$merged_peaks)
     spl <- split_rois_nonoverlap_named(roi_info)
+    names(spl) <- NULL   # guard against duplicate GRanges names (see split fn)
     roi_split <- as.data.frame(spl)[, c("seqnames", "start", "end", "name", "width")]
     roi_split$width <- roi_split$width - 1L
     colnames(roi_split)[1:4] <- c("chr", "start", "end", "peak")
     roi_split <- rename_roi_origins(roi_split, beds[[1]], beds[[2]], beds[[3]])
+    rownames(roi_split) <- NULL
     message("n_roi (len >= ", len_threshold, "): ", nrow(roi_split))
 
     # 3. ROI binary arrays (bind window coordinates to the mark matrices).

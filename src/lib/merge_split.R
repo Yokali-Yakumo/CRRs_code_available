@@ -137,6 +137,10 @@ split_rois_nonoverlap_named <- function(roi, threshold = SPLIT_ROI_THRESHOLD,
         }
     }
     new_rois <- do.call(c, out_list)
+    # The GRanges 'names' are irrelevant downstream and can be duplicated when
+    # the input data.frame carried row names; clear them so that
+    # as.data.frame() later does not fail on duplicate row names.
+    names(new_rois) <- NULL
     GenomicRanges::sort(new_rois)
 }
 
