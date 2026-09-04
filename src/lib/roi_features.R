@@ -305,16 +305,49 @@ extract_features_for_roi_list <- function(roi_list, mark_names, time_names,
 # ROI binary-array assembly (from 0-pipline.R / Length_sensitivity.r).
 # ------------------------------------------------------------------------------
 
+# First whole-genome row of every chromosome. The fast row arithmetic below is
+# only valid when the window BED is concatenated in chromosome order and the
+# windows of every chromosome start at 0 with a constant BIN_SIZE step, so
+# those properties are asserted here (one cheap pass over the table).
+first_window_rows <- function(window_bed, chroms = CHROMS, bin = BIN_SIZE) {
+    chr <- window_bed$chr
+    off <- match(chroms, chr)
+    if (anyNA(off)) stop("Some chromosomes of CHROMS are missing from the window BED")
+    ok <- vapply(chroms, function(ch) {
+        i <- which(chr == ch)
+        n <- length(i)
+        n >= 1L &&
+            window_bed$start[i[1]] == 0L &&
+            window_bed$start[i[n]] + bin == window_bed$end[i[n]] &&
+            (n == 1L || all(diff(window_bed$start[i]) == bin))
+    }, logical(1))
+    if (!all(ok)) {
+        stop("Window BED is not a contiguous 0-based, ", bin,
+             "-bp tiling per chromosome; cannot use fast ROI window mapping.")
+    }
+    names(off) <- chroms
+    off
+}
+
 # Map a "chr:start:end" string onto the range of whole-genome window rows it
-# covers, after snapping the coordinates to the 200 bp window grid
-# (floor for start, ceiling for end -- the original BedInter()).
-bed_interval_to_windows <- function(peak, all_bin) {
-    peak <- unlist(strsplit(peak, ":", fixed = TRUE))
-    start <- floor(as.integer(peak[2]) / 200L) * 200L
-    end   <- ceiling(as.integer(peak[3]) / 200L) * 200L
-    index1 <- which(all_bin$start == start & all_bin$chr == peak[1])
-    index2 <- which(all_bin$end == end & all_bin$chr == peak[1])
-    index1:index2
+# covers. Coordinates are snapped to the 200 bp window grid exactly like the
+# original BedInter() (floor for start, ceiling for end), then translated into
+# row numbers by arithmetic using 'first_rows' (chromosome -> first window row)
+# and the verified contiguity of the window grid. O(1) per ROI instead of a
+# which() scan over ~15 M rows.
+bed_interval_to_windows <- function(peak, first_rows, bin = 200L) {
+    parts <- strsplit(peak, ":", fixed = TRUE)[[1]]
+    ch <- parts[1]
+    if (is.na(ch) || is.null(first_rows[[ch]])) {
+        stop("Unknown chromosome in peak interval: ", peak)
+    }
+    start <- floor(as.integer(parts[2]) / bin) * bin
+    end   <- ceiling(as.integer(parts[3]) / bin) * bin
+    first <- first_rows[[ch]]
+    r1 <- first + start %/% bin
+    r2 <- first + end %/% bin - 1L
+    if (r2 < r1) stop("Empty window interval for peak: ", peak)
+    seq.int(r1, r2)
 }
 
 # Build the ROI list: for every ROI (row of 'roi_split', whose 4th column is
@@ -324,12 +357,13 @@ bed_interval_to_windows <- function(peak, all_bin) {
 # tables (window columns bound on the left, marks in columns 4:11), named
 # msc / adi_7d / adi_15d. Returns a named list of arrays.
 build_roi_list <- function(roi_split, all_bins, n_cores = 1L,
-                           mark_col_idx = 4:11) {
+                           mark_col_idx = 4:11, bin = BIN_SIZE) {
     require_pkgs("abind")
+    first_rows <- first_window_rows(all_bins[[1]][, 1:3])
     one_roi <- function(i) {
         input <- roi_split[i, , drop = FALSE]
         peak  <- paste0(input[[1, 1]], ":", input[[1, 2]], ":", input[[1, 3]])
-        idx   <- bed_interval_to_windows(peak, all_bins[[1]])
+        idx   <- bed_interval_to_windows(peak, first_rows, bin = bin)
         tab1  <- all_bins[[1]][idx, mark_col_idx]
         tab2  <- all_bins[[2]][idx, mark_col_idx]
         tab3  <- all_bins[[3]][idx, mark_col_idx]
