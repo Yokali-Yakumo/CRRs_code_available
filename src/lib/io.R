@@ -32,7 +32,9 @@ read_window_bed <- function(path) {
 }
 
 # Read one whole-genome binary matrix (gzipped TSV with header). Returns a
-# data.frame with the eight mark columns, in the original column order.
+# data.frame with the eight mark columns, in the original column order. Values
+# are coerced to integer to halve the in-memory footprint of the ~15 M x 8
+# matrices (semantically unchanged: the entries are 0/1).
 read_binary_matrix <- function(path) {
     if (!file.exists(path)) stop("Binary matrix file not found: ", path)
     mat <- data.table::fread(path, header = TRUE, sep = "\t")
@@ -40,6 +42,7 @@ read_binary_matrix <- function(path) {
     if (!all(vapply(mat, is.numeric, logical(1)))) {
         stop("Binary matrix must contain only numeric 0/1 columns: ", path)
     }
+    mat[] <- lapply(mat, as.integer)
     mat
 }
 
