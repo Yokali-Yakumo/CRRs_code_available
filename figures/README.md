@@ -75,12 +75,9 @@ R ≥ 4.x with the packages listed at the top of each script (many are
 Bioconductor packages, install with `BiocManager::install()`). No ChromHMM
 installation, Java or BAM files are needed at this level.
 
-## Note on the number of clusters
+## Note on the clustering panels
 
-The UMAP and z-score heatmap panels show the clustering solution reported in the
-manuscript. The **number** of clusters is not fixed: it depends on the MFA
-variance-explained threshold, the clustering resolution and the graph
-`k.param`. What is robust across those settings is the **two-neighbourhood
-structure** of the embedding — a group of predominantly repressive CRRs and a
-group carrying activation-associated features (manuscript clusters 1–4 vs 5–7).
-See the note in the top-level `README.md`.
+The UMAP and z-score heatmap panels show the solution written by
+`pipeline/src/run_03_cluster_main.R`. The *number* of clusters follows the
+parameters; `pipeline/src/run_05_sensitivity_clustering.R` is the script that
+sweeps them. See the **Clustering** section of the top-level `README.md`.

@@ -60,25 +60,26 @@ authors.
 
 ---
 
-## A note on the clustering step
+## Clustering
 
-The number of CRR clusters is **not a fixed quantity**: it depends on the MFA
-variance-explained threshold, the clustering resolution and the graph
-`k.param` — exactly the parameters swept by
-`pipeline/src/run_05_sensitivity_clustering.R`.
+The clustering step is kept inspectable rather than presented as one fixed
+answer:
 
-What is robust across these settings is the **two-neighbourhood structure** of
-the UMAP embedding: a group of predominantly repressive CRRs and a group
-carrying activation-associated features. This is the structure the manuscript
-refers to as *clusters 1–4* and *clusters 5–7*, and it is what the downstream
-biological conclusions rest on.
+* **clustering functions** — `pipeline/src/lib/mfa_cluster.R`
+  (`define_feature_groups`, `run_mfa`, `Cl.seurat`, `relabel_clusters`,
+  `switch_score`);
+* **parameter sensitivity** — `pipeline/src/run_05_sensitivity_clustering.R`
+  sweeps the MFA variance-explained threshold, the clustering resolution and
+  `k.param` (75 combinations by default) and scores every combination with
+  silhouette width, η² of the switch score, Calinski–Harabasz,
+  Davies–Bouldin, bootstrap ARI and the resulting number of clusters
+  (`pipeline/src/lib/sensitivity_metrics.R`).
 
-The seven-cluster solution reported in the manuscript is the particular
-solution selected by the internal-validity and bootstrap-stability criteria
-implemented in that sensitivity analysis. The code is provided so that the
-choice can be inspected and re-run rather than taken on trust; a user who
-changes the resolution or `k.param` may obtain a different number of clusters
-while the two-neighbourhood structure persists.
+The number of clusters is a property of the parameter setting; what persists
+across the grid is the two-neighbourhood structure of the embedding — a group
+of predominantly repressive CRRs and a group carrying activation-associated
+features (manuscript clusters 1–4 and 5–7). `run_03` writes the solution used
+in the manuscript.
 
 ---
 
@@ -157,7 +158,7 @@ only inside the repository and share intermediates under `pipeline/work/`.
 Deliverables land in `pipeline/output/`.
 
 `run_05` is the one to consult when judging how sensitive the cluster solution
-is — see [A note on the clustering step](#a-note-on-the-clustering-step).
+is — see [A note on the clustering step](#clustering).
 
 ### Part 2 — figures
 
