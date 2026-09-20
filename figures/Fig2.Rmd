@@ -1,0 +1,1493 @@
+
+<!--
+Reproduces main Figure 2: schematic illustrations of ChIP tracks/ridges, dimension-reduction and UMAP of the seven CRR classes, ROI cartoon and per-class per-mark binary-signal z-score heatmap. Inputs (examples): output/clusters.all.binary.colSums.tsv and the clustering outputs (Seurat/UMAP objects). Outputs: outplots/fig2*.pdf.
+--> 
+fig2.plots
+
+# ====================================================
+# a. 示意图，这里面输入端两部分数据都需要绘制示意图
+
+```{r}
+# 加载必要的库
+library(ggplot2)
+library(tidyr)
+
+# 1. 提取数据并计算 log2 值
+# 假设您的数据已经存在于环境中
+data1 <- log2(k27.env$msc.k27$len)
+data2 <- log2(k27.env$adi_7d.k27$len)
+data3 <- log2(k27.env$adi_15d.k27$len)
+
+# 2. 构建数据框
+# 给每组数据打上标签，方便后续上色
+df <- data.frame(
+  Value = c(data1, data2, data3),
+  Group = rep(c("MSC", "ADI_7d", "ADI_14d"), 
+              times = c(length(data1), length(data2), length(data3)))
+)
+
+# 确保 Group 是因子类型，保证图例顺序
+df$Group <- factor(df$Group, levels = c("MSC", "ADI_7d", "ADI_14d"))
+# 3. 绘图
+ggplot(df, aes(x = Value, fill = Group, color = Group)) +
+  # alpha 设置透明度，方便观察重叠部分
+  geom_density(alpha = 0.3, size = 0.8) + 
+  # 设置坐标轴标签
+  labs(
+    title = "Density Plot of k27 Lengths",
+    x = "log2(Length)",
+    y = "Density"
+  ) +
+  # 使用经典主题
+  theme_classic() +
+  # 自定义颜色（可选）
+  scale_fill_manual(values = c("#1F77B4", "#2CA02C" , "#D62728")) +
+  scale_color_manual(values = c("#1F77B4", "#2CA02C" , "#D62728")) +
+  # 优化图例位置
+  theme(legend.position = "top")
+
+
+```
+
+
+```{r}
+library(ggplot2)
+library(ggridges)
+library(dplyr)
+
+
+# 1. 模拟数据生成函数 - 优化参数以追求美观
+set.seed(42)
+
+generate_pretty_signal <- function(name, type, center = 50, weight = 1) {
+  n_points <- 5000 * weight # 通过 weight 增加数据量，间接影响视觉高度
+  pos <- numeric(0)
+  
+  if (type == "narrow") {
+    # 稍微加宽一点，不要太尖
+    pos <- rnorm(n_points, mean = center, sd = 3)
+  } else if (type == "medium") {
+    pos <- rnorm(n_points, mean = center, sd = 5)
+  } else if (type == "bimodal_wide") {
+    # 明显的双峰，拉开距离
+    pos <- c(rnorm(n_points/2, mean = center - 12, sd = 3), 
+             rnorm(n_points/2, mean = center + 12, sd = 3))
+  } else if (type == "bimodal_narrow") {
+    # 较近的双峰
+    pos <- c(rnorm(n_points/2, mean = center - 6, sd = 2.5), 
+             rnorm(n_points/2, mean = center + 6, sd = 2.5))
+  } else if (type == "hill") {
+    # 针对 H3K36me3/H3K9me3，做成明显的拱形山峦
+    pos <- rnorm(n_points, mean = center, sd = 8)
+  } else if (type == "plateau") {
+    # 针对 H3K27me3，通过多个高密度正态分布重叠，形成一个高耸的“平原”
+    pos <- c(rnorm(n_points/3, mean = center - 10, sd = 6),
+             rnorm(n_points/3, mean = center,      sd = 6),
+             rnorm(n_points/3, mean = center + 10, sd = 6))
+  }
+  return(data.frame(Mark = name, Position = pos))
+}
+
+# 2. 构建数据集（手动微调每个峰的位置，避开完全重合）
+data_list <- list(
+  generate_pretty_signal("DNase",    "narrow",         center = 25),
+  generate_pretty_signal("H3K27ac",  "narrow",         center = 35),
+  generate_pretty_signal("H3K4me3",  "medium",         center = 45),
+  generate_pretty_signal("H3K4me1",  "bimodal_wide",   center = 65), # 宽双峰
+  generate_pretty_signal("H3K9ac",   "bimodal_narrow", center = 50), # 窄双峰
+  generate_pretty_signal("H3K9me3",  "hill",           center = 40, weight = 1.5), # 增加权重拔高
+  generate_pretty_signal("H3K36me3", "hill",           center = 75, weight = 1.5), # 增加权重拔高
+  generate_pretty_signal("H3K27me3", "plateau",        center = 55, weight = 2.0)  # 重点拔高，形成高原
+)
+
+df <- bind_rows(data_list)
+
+# 设定因子顺序
+df$Mark <- factor(df$Mark, levels = rev(c("DNase", "H3K27ac", "H3K4me3", "H3K4me1", 
+                                          "H3K9ac", "H3K36me3", "H3K9me3", "H3K27me3")))
+
+my_colors <- c(
+  "DNase" = "#94a3b8", # DNase (中性灰)
+  "H3K27ac" = "#f87171", # H3K27ac (珊瑚红)
+  "H3K4me1" = "#4ade80", # H3K4me1 (嫩绿)
+  "H3K4me3" = "#fbbf24", # H3K4me3 (金黄)
+  "H3K9ac" = "#fb923c", # H3K9ac (橙色)
+  "H3K36me3" = "#0d9488", # H3K36me3 (青色)
+  "H3K27me3" = "#60a5fa", # H3K27me3 (天蓝)
+  "H3K9me3" = "#818cf8"  # H3K9me3 (淡紫)
+  )
+
+# 3. 绘制美化版山脊图
+p <- ggplot(df, aes(x = Position, y = Mark, color = Mark,fill=Mark)) +
+  # scale 控制重叠程度，数值越大，峰越高，越容易压到上一层
+  geom_density_ridges(alpha = 0.5, linewidth = 1.2, scale = 2.0, rel_min_height = 0.0001) +
+  # 配色方案：使用更有活力的色彩
+  scale_fill_manual(values = my_colors) +
+  scale_color_manual(values = my_colors) +
+  
+  labs(x = "", y = "") +
+  theme_ridges(grid = FALSE) +
+  theme(
+    legend.position = "none",
+    axis.text.y = element_text(color="black"),
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.line.x = element_line(color = "black",size=0),
+    panel.background = element_blank()
+  ) +
+  xlim(0, 110) # 留出一点边距
+
+# 打印
+print(p)
+
+ggsave("outplots/fig2/fig2_a.simulated.chip.ridges.pdf",width=5,height=4,dpi=300)
+```
+
+
+```{r}
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+
+# 1. 构造模拟数据 (保持不变)
+set.seed(123)
+n <- 15
+cluster_data <- function(mu, color) {
+  data.frame(
+    x = rnorm(n, mu[1], 0.5),
+    y = rnorm(n, mu[2], 0.5),
+    z = rnorm(n, mu[3], 0.5),
+    group = color
+  )
+}
+
+df <- rbind(
+  cluster_data(c(2, 8, 5), "Blue"),
+  cluster_data(c(5, 8, 2), "Red"),
+  cluster_data(c(3, 3, 7), "Yellow"),
+  cluster_data(c(8, 3, 4), "Green")
+)
+
+my_colors <- c("Blue" = "#5DA5DA", "Red" = "#F15854", "Yellow" = "#FAA43A", "Green" = "#60BD68")
+
+# 执行 PCA
+pca_res <- prcomp(df[, 1:3], scale. = TRUE)
+df_pca <- as.data.frame(pca_res$x)
+df_pca$group <- df$group
+
+# --- 图 1: 3D 投影示意图 ---
+project_3d <- function(x, y, z) {
+  data.frame(x_proj = x + 0.5 * z, y_proj = y + 0.5 * z)
+}
+df_3d <- cbind(df, project_3d(df$x, df$y, df$z))
+
+p1 <- ggplot(df_3d) +
+  annotate("segment", x=0, xend=10, y=0, yend=0) + 
+  annotate("segment", x=0, xend=0, y=0, yend=10) +
+  annotate("segment", x=5, xend=15, y=5, yend=5, color="grey80") +
+  annotate("segment", x=5, xend=5, y=5, yend=15, color="grey80") +
+  annotate("segment", x=0, xend=5, y=0, yend=5, color="grey80") +
+  annotate("segment", x=10, xend=15, y=0, yend=5, color="grey80") +
+  annotate("segment", x=0, xend=5, y=10, yend=15, color="grey80") +
+  annotate("segment", x=10, xend=15, y=10, yend=15, color="grey80") +
+  annotate("segment", x=10, xend=10, y=0, yend=10) +
+  annotate("segment", x=0, xend=10, y=10, yend=10) +
+  annotate("segment", x=5, xend=15, y=15, yend=15, color="grey80") +
+  annotate("segment", x=15, xend=15, y=5, yend=15, color="grey80") +
+  geom_point(aes(x_proj, y_proj, fill=group), size=3, alpha=0.8,shape=21, color="grey", stroke=0.5) +
+  scale_fill_manual(values = my_colors) +
+  annotate("text", x=11, y=-0.5, label="x") +
+  annotate("text", x=-0.5, y=11, label="y") +
+  annotate("text", x=-0.5, y=-0.5, label="z") +
+  annotate("segment", x=5, y=5, xend=8, yend=9, arrow=arrow(length=unit(0.2,"cm")), linetype="dashed", color="steelblue", size=0.8) +
+  annotate("text", x=9, y=10, label="PC1", color="steelblue", fontface="bold") +
+  theme_void(base_size = 16) + theme(legend.position = "none")
+
+# --- 图 2: 2D PCA (修改为黑色实线轴) ---
+p2 <- ggplot(df_pca, aes(PC1, PC2, fill=group)) +
+  geom_point(size=3, alpha=0.8,shape=21, color="grey", stroke=0.5) +
+  scale_fill_manual(values = my_colors) +
+  # 黑色实线坐标轴
+  geom_segment(aes(x=-3.5, y=-3.5, xend=3.5, yend=-3.5), arrow=arrow(length=unit(0.2,"cm")), color="black", size=0.8) +
+  geom_segment(aes(x=-3.5, y=-3.5, xend=-3.5, yend=3.5), arrow=arrow(length=unit(0.2,"cm")), color="black", size=0.8) +
+  # 标签
+  annotate("text", x=0, y=-4.2, label="PC1", color="black", fontface="bold") +
+  annotate("text", x=-4.2, y=0, label="PC2", color="black", angle=90, fontface="bold") +
+  coord_cartesian(xlim=c(-4.5, 4.5), ylim=c(-4.5, 4.5)) +
+  theme_void(base_size = 16) + theme(legend.position = "none")
+
+# --- 图 3: 1D PCA (修改为黑色实线轴) ---
+p3 <- ggplot(df_pca, aes(PC1, y=0, fill=group)) +
+  geom_point(size=3, alpha=0.8, position = position_jitter(height = 0.05),shape=21, color="grey", stroke=0.5) +
+  scale_fill_manual(values = my_colors) +
+  # 黑色实线数轴
+  geom_segment(aes(x=-3.5, y=0, xend=3.5, yend=0), arrow=arrow(length=unit(0.2,"cm"), ends="both"), color="black", size=0.8) +
+  # 标签
+  annotate("text", x=0, y=-0.4, label="PC1", color="black", fontface="bold") +
+  ylim(-1, 1) +
+  theme_void(base_size = 16) + theme(legend.position = "none")
+
+# --- 组合图形 ---
+final_plot <- (p1 | p2 | p3) 
+
+print(final_plot)
+ggsave(file = "outplots/fig2/fig2_a_DimRedu.pdf",final_plot,width=12,height=4,dpi=300)
+```
+
+
+fig2_b 绘制雷达图
+```{r}
+# 加载必要的库
+library(ggplot2)
+library(dplyr)
+
+# 1. 构建数据：定义每个阶段 Peak 的起始和终止位置（基于 1-26 的网格坐标）
+plot_data <- data.frame(
+  stage = c("MSC (Day 0)", "ADI (Day 7)", "ADI (Day 15)", "Unified ROIs"),
+  xmin = c(1, 7, 13, 1),   # 起始网格
+  xmax = c(14, 19, 26, 26), # 终止网格
+  y_pos = c(4, 3, 2, 0.5),  # 纵轴位置
+  # 使用十六进制颜色代码，确保颜色专业
+  color = c("#4A90E2", "#558B2F", "#C62828", "#2C3E50") 
+)
+
+# 2. 开始绘图
+p <- ggplot() +
+  # --- 绘制背景网格线 (0到26) ---
+  # 使用 geom_vline 和 geom_hline 模拟坐标纸效果
+  geom_vline(xintercept = seq(0, 26, 1), color = "gray92", size = 0.3) +
+  geom_hline(yintercept = seq(0, 5, 0.5), color = "gray96", size = 0.2) +
+  
+  # --- 绘制原始阶段的 Peak ---
+  # 注意：这里改用了 dplyr::filter 明确指定包名，避免冲突
+  geom_rect(data = dplyr::filter(plot_data, stage != "Unified ROIs"),
+            aes(xmin = xmin, xmax = xmax, ymin = y_pos - 0.3, ymax = y_pos + 0.3, fill = color),
+            color = "white", size = 0.5) +
+  
+  # --- 绘制合并后的 Unified ROI ---
+  geom_rect(data = dplyr::filter(plot_data, stage == "Unified ROIs"),
+            aes(xmin = xmin, xmax = xmax, ymin = y_pos - 0.3, ymax = y_pos + 0.3, fill = color),
+            color = "white", size = 0.5) +
+  
+  # --- 添加左侧阶段标签 ---
+  geom_text(data = plot_data, aes(x = -0.5, y = y_pos, label = stage), 
+            hjust = 1, fontface = "bold", size = 4, family = "sans") +
+  
+  # --- 添加中间的合并指示箭头 ---
+  annotate("segment", x = 13, xend = 13, y = 1.6, yend = 0.9, 
+           arrow = arrow(length = unit(0.2, "cm"), type = "closed"), 
+           color = "gray30", size = 0.8) +
+  annotate("text", x = 13.5, y = 1.25, label = "Merge & Union", 
+           hjust = 0, fontface = "italic", color = "gray30", size = 3.5) +
+  
+  # --- 颜色映射设置 ---
+  scale_fill_identity() +
+  
+  # --- 坐标轴与样式调整 ---
+  # 适当放宽左侧限制 (xmin = -6) 以容纳文字
+  scale_x_continuous(limits = c(-6, 27), expand = c(0, 0), breaks = seq(0, 26, 5)) +
+  scale_y_continuous(limits = c(0, 5)) +
+  theme_void(base_size = 16) +
+  labs(
+    title = "H3K27me3 ROI Merging Strategy",
+    x = "Relative Genomic Position (Bins)",
+    y = ""
+  ) +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    axis.text = element_text(color = "black"),
+    plot.background = element_rect(fill = "white", color = NA),
+    plot.margin = margin(20, 20, 20, 20)
+  )
+
+ggsave("outplots/fig2/fig2_a.ROIs.pdf",width=5,height=5,dpi=300)
+```
+
+# fig2_a 绘制聚类结果: UMAP图和
+```{r}
+p <- DimPlot(
+    seu, group.by = "seurat_clusters",label = T,reduction = "umap",
+    label.box = T,raster=T,raster.dpi=c(512,512),label.size=8,
+    pt.size = 1.5) + 
+    theme_classic(base_size = 16) 
+ggsave("outplots/fig2/fig2_a.UMAP.pdf",p,width=8,height=8,dpi=300)
+p
+dev.off()
+```
+
+
+# fig2_d 雷达图
+```{r}
+source("Fig2_radar_panel.R")
+
+```
+
+
+# ====================================================
+# fig2_c. 统计每个cluster对应不同chip/不同时间（24维）的原始取值 发射矩阵
+```{r}
+roi_period <- c("d0","d7","d14")
+all.output <- data.frame()
+for (i in 1:7){
+    input <- roi_info.split[roi_info.split$cluster == i,]
+    input_list <- roi_list[input$peak]
+    for (j in 1:3){
+        res_list <- lapply(input_list, function(x) colSums(x[,,j]))
+        # 合并为 10000 * 8 的矩阵
+        result <- do.call(rbind, res_list)
+        out <- as.data.frame(colSums(result)) %>% t()
+        rownames(out) <- paste0('cluster',i)
+        colnames(out) <- paste0(colnames(out),'_',roi_period[j])
+        {if (j == 1){cluster_output <- out}
+        else{cluster_output <- cbind(cluster_output,out)}}
+        
+    }
+    cluster_output <- as.data.frame(cluster_output)
+    cluster_output$sum <- round(sum(input$width)/200)
+    all.output <- rbind(all.output,cluster_output)
+}
+write.table(all.output,file = "output/clusters.all.binary.colSums.tsv",row.names = T,col.names = T,sep = "\t",quote = F)
+
+## 对统计得到的概率密度矩阵进行zscore变换
+library(pheatmap)
+
+data <- read.table("output/clusters.all.binary.colSums.tsv", header = TRUE, row.names = 1)
+
+# 2. 去掉最后的 'sum' 列（因为它会干扰标准化）
+counts <- data[, -ncol(data)]
+
+# 3. 消除 Cluster 大小影响：除以该行的总和
+counts_prop <- counts / data$sum
+
+# 4. Z-score 变换 (对所有时间的同一种chip进行标准化)
+data_scaled_long <- counts_prop %>%
+  rownames_to_column("cluster") %>%
+  pivot_longer(cols = -cluster, names_to = "sample", values_to = "val") %>%
+  # 提取 Marker 名称 (去掉末尾的 _d0, _d7, _d14)
+  mutate(marker = str_remove(sample, "_d(0|7|14)$")) %>%
+  # 按 Marker 分组进行标准化
+  group_by(marker) %>%
+  mutate(zscore = (val - mean(val)) / sd(val)) %>%
+  ungroup()
+
+data_z <- data_scaled_long %>%
+  select(cluster, sample, zscore) %>%
+  pivot_wider(names_from = sample, values_from = zscore) %>%
+  column_to_rownames("cluster")
+
+# 确保列顺序和原始数据一致
+data_z <- data_z[, colnames(counts_prop)]
+
+
+# 5. 绘制热图
+# 数据清洗：转为长表格格式 (Long Format)
+# 我们需要把 DNase_d0 拆分成 Mark="DNase" 和 Time="d0"
+df <- as.data.frame(data_z)
+df_long <- df %>%
+  mutate(Cluster = rownames(.)) %>%
+  pivot_longer(cols = -Cluster, names_to = "Feature", values_to = "Count") %>%
+  # 拆分 Feature 列，例如 DNase_d0 -> Mark="DNase", Time="d0"
+  separate(Feature, into = c("Mark", "Time"), sep = "_")
+df_long$Time <- factor(df_long$Time,c("d0","d7","d14"))
+df_long$Cluster <- factor(df_long$Cluster,paste0('cluster',7:1))
+
+# 绘图：ggplot2 分面热图
+p <- ggplot(df_long, aes(x = Time, y = Cluster, fill = Count)) +
+  geom_tile(color = "white") + # 画热图方块
+  facet_wrap(~Mark, nrow = 2) + # 按 Mark 分面，每行放几个
+    scale_fill_distiller(palette = "RdBu", 
+                       direction = -1, 
+                       limits = c(-2.5, 2.5),
+                       oob = scales::squish,
+                       name = "Z-score") +
+  theme_minimal(base_size = 16) +
+  labs(title = "",
+       x = "Time Point",
+       y = "",
+       fill = "Z-score") +
+  theme(axis.text = element_text(color="black"),
+  panel.border = element_rect(color = "black", fill = NA, linewidth = 0.8),
+        strip.background = element_rect(fill = "grey90"), # 分面标签背景
+        panel.spacing = unit(0.5, "lines")) # 分面间距
+ggsave("outplots/fig2/fig2_c.all.chip.zscore.pdf",p,width=8,height=8,dpi=300)
+```
+
+
+
+
+## fig2_e 展示DDRTree的拟时序分析结果
+```{r}
+library(DDRTree)
+library(ggplot2)
+library(dplyr)
+library(princurve)
+
+# ==================== 1. 准备数据 ====================
+threshold.emb = 0.6
+ndim <- which(res.mfa$eig[,3] >= threshold.emb*100) %>% min()
+full_pcs <- as.matrix(res.mfa$ind$coord[, 1:ndim]) # 37000 行
+
+# 确保 cell 名字一致
+cell_names <- rownames(full_pcs)
+cluster_labels <- seu$seurat_clusters[cell_names] # 保证 Cluster 顺序与 PC 矩阵一致
+
+# ==================== 2. DDRTree 降维 ====================
+message("开始 DDRTree 降维...")
+ddrtree_result <- DDRTree(
+  X = t(full_pcs),      # 输入：ndim x 37000
+  ndim = 2, 
+  ncenter = 1000,        # 3.7万细胞推荐设为 400-1000，4000会非常慢
+  lambda = 10000,         
+  param.gamma = 4,      
+  sigma = 0.001
+)
+message("DDRTree 计算完成！")
+
+# ==================== 3. 提取低维坐标 (已修正 Y 和 Z 的定义) ====================
+# Z 是细胞在 2 维潜空间中的投影 (2 x 37006)
+cell_coords <- as.data.frame(t(ddrtree_result$Z))
+colnames(cell_coords) <- c("Dim1", "Dim2")
+rownames(cell_coords) <- cell_names
+cell_coords$cluster <- as.factor(cluster_labels) # 现在这里可以完美对齐 37006 行了
+
+# Y 是骨架节点在 2 维潜空间中的投影 (2 x 4000)
+node_coords <- as.data.frame(t(ddrtree_result$Y))
+colnames(node_coords) <- c("Dim1", "Dim2")
+
+
+# ==================== 4. 拟时序分析 (基于细胞坐标 Z) ====================
+library(igraph)
+library(igraph)
+
+# ==================== 1. 构建骨架图并计算节点距离 ====================
+# 获取骨架节点坐标 (4000 x 2)
+node_coords_matrix <- t(ddrtree_result$Y)
+
+# 获取邻接矩阵 (4000 x 4000)
+adj_matrix <- as.matrix(ddrtree_result$stree)
+
+# 使用 igraph 创建无向图
+g <- graph_from_adjacency_matrix(adj_matrix, mode = "undirected", weighted = TRUE)
+
+# 将边的权重更新为节点之间的真实欧氏距离
+edges <- as_edgelist(g)
+edge_weights <- sapply(1:nrow(edges), function(i) {
+  u <- node_coords_matrix[edges[i, 1], ]
+  v <- node_coords_matrix[edges[i, 2], ]
+  sqrt(sum((u - v)^2)) # 欧氏距离
+})
+E(g)$weight <- edge_weights
+
+
+# ==================== 2. 自动或手动指定起点 (Root) ====================
+# 寻找发育起点：通常选择 Dim1 最小（或最大）的端点（度为 1 的节点）
+degrees <- degree(g)
+leaves <- which(degrees == 1) # 找到所有末梢节点
+
+# 自动选择 Dim1 最小的末梢节点作为起点（您可以根据实际生物学背景修改此逻辑）
+root_node <- leaves[which.max(node_coords_matrix[leaves, 1])]
+
+
+# ==================== 3. 计算节点拟时序 ====================
+# 计算起点到所有骨架节点的最短路径距离
+node_pseudotime <- distances(g, v = root_node, to = V(g), weights = E(g)$weight)
+node_pseudotime <- as.numeric(node_pseudotime)
+
+
+# ==================== 4. 将细胞投影到最近的骨架节点 (已修正) ====================
+message("开始计算细胞到骨架节点的最近邻投影...")
+
+# 获取 37006 个细胞的坐标矩阵 (37006 x 2)
+cell_coords_matrix <- as.matrix(cell_coords[, c("Dim1", "Dim2")])
+
+# 快速计算每个细胞到 4000 个节点的最近邻
+# 使用 Rcpp 或高效的矩阵运算避免慢速循环
+# 计算公式：dist_matrix[i, j] = (cell_x - node_x)^2 + (cell_y - node_y)^2
+cell_sq <- rowSums(cell_coords_matrix^2)
+node_sq <- rowSums(node_coords_matrix^2)
+cross_term <- cell_coords_matrix %*% t(node_coords_matrix)
+
+# 距离矩阵的平方比例，寻找每行（每个细胞）最小值对应的列索引（节点）
+cell_to_node <- max.col(- (outer(cell_sq, node_sq, "+") - 2 * cross_term))
+
+# 细胞继承对应最近节点的拟时序
+cell_pseudotime <- node_pseudotime[cell_to_node]
+
+# 归一化到 [0, 1] 区间
+pseudotime_scaled <- (cell_pseudotime - min(cell_pseudotime)) / 
+                     (max(cell_pseudotime) - min(cell_pseudotime))
+
+# 写入 cell_coords 数据框
+cell_coords$pseudotime <- pseudotime_scaled
+message("拟时序投影计算完成！")
+
+# ==================== 5. 绘图与保存 ====================
+my_colors <- c(
+  "1" = "#1F4E8C", # 深蓝
+  "2" = "#76A9DC", # 浅蓝    
+  "3" = "#F2D36B", # 浅金黄   
+  "4" = "#B8860B", # 深芥末黄  
+  "5" = "#C6283D", # 最强红   
+  "6" = "#E06C4F", # 橙红
+  "7" = "#e29fbb"  # 紫红
+)
+
+library(dplyr)
+
+# 设置随机种子以确保结果可重复
+set_seed_val <- 42
+set.seed(set_seed_val)
+
+# 按照 cluster 分组，每个 cluster 随机抽取 20% 的细胞
+cell_coords_sub <- cell_coords %>%
+  group_by(cluster) %>%
+  sample_frac(0.20) %>%
+  ungroup() # 解除分组，防止后续绘图出现意外
+
+
+# ==================== 提取骨架连线 (edge_coords) ====================
+# 1. 提取骨架节点坐标并转换为数据框
+node_coords <- as.data.frame(t(ddrtree_result$Y))
+colnames(node_coords) <- c("Dim1", "Dim2")
+node_coords$Node_ID <- 1:nrow(node_coords) # 给节点标号
+
+# 2. 从邻接矩阵 stree 中提取所有的边 (Edge)
+# 邻接矩阵中值为 1 的位置代表节点之间有连线
+adj_matrix <- as.matrix(ddrtree_result$stree)
+edges_matrix <- which(adj_matrix == 1, arr.ind = TRUE)
+
+# 过滤掉重复的无向边（保留 i < j 的部分，防止重复画线）
+edges_matrix <- edges_matrix[edges_matrix[, 1] < edges_matrix[, 2], , drop = FALSE]
+
+# 3. 将边的两端节点索引映射到它们的 2D 坐标上，生成 edge_coords 数据框
+edge_coords <- data.frame(
+  x    = node_coords$Dim1[edges_matrix[, 1]],
+  y    = node_coords$Dim2[edges_matrix[, 1]],
+  xend = node_coords$Dim1[edges_matrix[, 2]],
+  yend = node_coords$Dim2[edges_matrix[, 2]]
+)
+
+
+
+# ---- 优化后的图 1: DDRTree 分群图（20% 抽样高亮） ----
+p_clu <- ggplot() +
+  # 1. 底层：绘制全量细胞作为淡灰色背景（提供整体轮廓，不抢戏）
+  geom_point(data = cell_coords_sub, aes(x = Dim1, y = Dim2), 
+             size = 0.4, alpha = 0.2, color = "grey90") + 
+  # 4. 顶层：绘制骨架节点（外圈黑、内圈白，比单纯的 shape=1 更有质感）
+  geom_point(data = node_coords, aes(x = Dim1, y = Dim2), 
+             color = "black", fill = "grey", size = 1.0, shape = 21, stroke = 0.8) +
+  
+  # 2. 中层：绘制 20% 抽样后的带颜色细胞（消除重叠，展现真实分布）
+  geom_point(data = cell_coords_sub, aes(x = Dim1, y = Dim2, color = cluster), 
+             size = 0.6, alpha = 0.8) + 
+  
+  # 3. 顶层：绘制骨架连线（与图 2 保持 100% 一致）
+  geom_segment(data = edge_coords, aes(x = x, y = y, xend = xend, yend = yend), 
+               color = "black", size = 0.6, alpha = 0.9) +
+
+  # 5. 颜色与标签配置
+  scale_color_manual(values = my_colors, name = "Cluster") +
+  labs(x = "DDRTree 1", y = "DDRTree 2") +
+  
+  # 6. 主题美化
+  theme_bw(base_size = 16) +
+  theme(
+    axis.text = element_text(color = "black"),
+    panel.grid = element_blank(),
+    #aspect.ratio = 1,              # 严格保持 1:1 比例
+    legend.position = "right"
+  )
+
+# 保存图 1
+ggsave("outplots/fig2/fig2_e1.ddrtree.cluster.pdf", p_clu, width=6, height=6, dpi=300)
+
+
+# ---- 图 2: DDRTree 拟时序渐变图（已优化参数与图层） ----
+
+
+# ---- 优化后的图 2: DDRTree 拟时序渐变图（20% 抽样高亮） ----
+p_pca <- ggplot() +
+  # 1. 底层：绘制全量细胞作为淡灰色背景
+  geom_point(data = cell_coords_sub, aes(x = Dim1, y = Dim2), 
+             size = 0.4, alpha = 0.2, color = "grey90") + 
+
+  # 4. 顶层：绘制骨架连线
+  geom_segment(data = edge_coords, aes(x = x, y = y, xend = xend, yend = yend), 
+               color = "black", size = 0.8, alpha = 0.9) +
+  # 5. 顶层：绘制骨架节点
+  geom_point(data = node_coords, aes(x = Dim1, y = Dim2), 
+             color = "black", fill = "white", size = 1.2, shape = 21, stroke = 0.8) +
+  # 2. 中层：绘制 20% 抽样后的拟时序渐变点
+  geom_point(data = cell_coords_sub, aes(x = Dim1, y = Dim2, color = pseudotime), 
+             size = 0.6, alpha = 0.8) +
+  
+  # 3. 渐变色配置
+  scale_color_viridis_c(
+    option = "viridis", 
+    direction = -1, 
+    name = "Pseudotime",
+    breaks = c(0, 0.5, 1.0),
+    labels = c("0.0", "0.5", "1.0")
+  ) +  
+  
+  # 6. 标签与主题
+  labs(x = "DDRTree 1", y = "DDRTree 2") +
+  theme_bw(base_size = 16) +
+  theme(
+    axis.text = element_text(color = "black"),
+    panel.grid = element_blank(),
+    #aspect.ratio = 1,
+    legend.position = "right"
+  )
+
+# 保存图 2
+ggsave("outplots/fig2/fig2_e2.ddrtree.pseudotime.pdf", p_pca, width=6, height=6, dpi=300)
+
+
+# ---- 图 3: 拟时序在不同群中的密度分布图 ----
+# 构造密度图所需的数据框
+df_density <- data.frame(
+  cell = rownames(cell_coords),
+  pseudotime = cell_coords$pseudotime,
+  cluster = cell_coords$cluster
+)
+
+p_density <- ggplot(df_density, aes(x = pseudotime, color = cluster, fill = cluster)) +
+  # 1. 绘制密度曲线：
+  #    - size = 1.2 增加线条粗细，使其清晰易读
+  #    - alpha = 0.08 极低的填充透明度（仅作为轻微点缀，不会造成重叠颜色浑浊）
+  #    - 如果您完全不想要任何阴影，可以直接设 fill = NULL 或 alpha = 0
+  geom_density(size = 1.6, alpha = 0.05) + 
+  
+  # 2. 颜色配置：
+  #    - 确保线条颜色（color）和填充颜色（fill）都使用您定义的 my_colors
+  scale_color_manual(values = my_colors, name = "Cluster") +
+  scale_fill_manual(values = my_colors, name = "Cluster") +
+    scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  
+  # 3. 标签与主题
+  labs(x = "Pseudotime", y = "Density") +
+  theme_classic(base_size = 16) +
+  theme(
+    axis.text = element_text(color = "black"),
+    axis.line = element_line(color = "black"), # 强化坐标轴线
+    legend.position = "right"
+  )
+
+ggsave("outplots/fig2/fig2_f.ddrtree.freq.pdf", p_density, width=7, height=6, dpi=300)
+
+
+p_violin <- ggplot(df_density, aes(x = cluster, y = pseudotime, color = cluster, fill = cluster)) +
+  
+  # 1. 绘制提琴图（“葫芦图”）：
+  #    - scale = "width" 让所有葫芦的最大宽度一致（或者用 "area", "count"）
+  #    - alpha = 0.5 控制填充透明度
+  #    - trim = FALSE 防止两头被生硬地截断
+  geom_violin(scale = "width", alpha = 0.5, trim = FALSE, linewidth = 1) + 
+  
+  # 2. 【可选但推荐】在提琴图内部加一个微型箱线图，显示中位数和上下四分位数，更有质感
+  geom_boxplot(width = 0.2, color = "black", alpha = 0.7, outlier.shape = NA, 
+               fill = "white", linewidth = 0.8) +
+  
+  # 3. 颜色配置（同时映射线条和填充）
+  scale_color_manual(values = my_colors, name = "Cluster") +
+  scale_fill_manual(values = my_colors, name = "Cluster") +
+  
+  # 4. 坐标轴调整（Y轴是拟时序，X轴是各个群）
+  scale_y_continuous(expand = c(0.02, 0)) +
+  
+  # 5. 标签与主题
+  labs(x = "Cluster", y = "Pseudotime") +
+  theme_classic(base_size = 16) +
+  theme(
+    axis.text = element_text(color = "black",size = 16),
+    axis.text.x = element_text(hjust = 1,size = 16), # 如果 Cluster 名字较长，旋转45度防重叠
+    axis.line = element_line(color = "black"), 
+    legend.position = "none" # 如果 X 轴已经有颜色了，也可以设为 legend.position = "none" 省略图例
+  )
+
+print(p_violin)
+ggsave("outplots/fig2/fig2_f.ddrtree.freq.vioplot.pdf", p_violin, width=8.5, height=6, dpi=300)
+
+
+
+```
+
+
+
+# 后面是几个supplementary 
+
+## sup2_a 展示各个cluster的数量柱状图
+```{r}
+# 加载必要的库
+library(ggplot2)
+library(scales)
+
+# 1. 准备数据
+df <- data.frame(
+  cluster = paste0('cluster',1:7),
+  count = as.data.frame(table(seu$seurat_clusters))[,2]
+)
+
+# 2. 定义你指定的颜色
+my_colors <- c(
+  "cluster1" = "#2ca02c", # 经典学术绿
+  "cluster2" = "#1b7837", # 深绿       
+  "cluster3" = "#3182bd", # 标准蓝    
+  "cluster4" = "#08519c", # 深蓝      
+  "cluster5" = "#b10026", # 科学红     
+  "cluster6" = "#feb24c", # 柔和橙黄  
+  "cluster7" = "#f768a1"  # 玫瑰粉红   
+)
+
+# 3. 绘图
+p <- ggplot(df, aes(x = cluster, y = count, fill = cluster)) +
+  # 绘制柱状图，添加细黑边框让颜色区分更明显
+  geom_bar(stat = "identity", color = "black", linewidth = 0.3) + 
+  # 添加 n=xx 标签
+  geom_text(aes(label = paste0("n=", count)), 
+            vjust = -0.5, 
+            size = 4) +
+  # 使用你自定义的颜色
+  scale_fill_manual(values = my_colors) +
+  # 设置主题
+  theme_classic(base_size = 16) +
+  # 隐藏图例，设置标题
+  theme(legend.position = "none") +
+  labs(x = "", y = "Number of ROIs") +
+  # 预留顶部空间防止标签被遮挡
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15)))
+ggsave(file = "outplots/fig2/sup2_a.clusters.barplots.pdf",p,width=6,height=6,dpi = 300)
+```
+
+
+
+## sup2_b 展示层次聚类的欧式距离热图
+```{r}
+# 假设：
+# X: 37006 x 29 矩阵/数据框
+# cluster: 长度 37006 的向量，表示每个样本的 cluster 标签
+
+library(dplyr)
+
+emb <- full_pcs
+# 1. 把 cluster 信息和降维矩阵合在一起
+df <- as.data.frame(emb)
+df$cluster <- cluster_labels   # 如果 cluster 是 factor 或 numeric 都可以
+
+# 2. 按 cluster 取均值，得到每个 cluster 的中心
+cluster_centers <- df %>%
+  group_by(cluster) %>%
+  dplyr::summarise(across(where(is.numeric), mean, .names = "{.col}")) %>%
+  ungroup()
+
+# 把 cluster 列单独拿出来当行名，剩下的是数值矩阵
+center_mat <- as.matrix(cluster_centers[ , -1])   # 去掉第一列 cluster
+rownames(center_mat) <- as.character(cluster_centers$cluster)
+
+# 3. 计算 cluster 间欧式距离矩阵
+dist_mat <- dist(center_mat, method = "euclidean")
+
+# 4. 做层次聚类
+hc <- hclust(dist_mat, method = "ward.D2")  # 方法可改为 "complete", "ward.D2" 等
+
+# 5. 画树状图
+plot(hc, main = "Hierarchical Clustering of Cluster Centers",
+     xlab = "Cluster", sub = "", ylab = "Euclidean distance")
+
+# install.packages(c("ggplot2", "ggdendro", "patchwork", "dplyr", "tidyr"))
+library(ggplot2)
+library(ggdendro)
+library(patchwork)
+library(dplyr)
+library(tidyr)
+
+## ---------- 1) 规范 dist_mat 为对称矩阵 + dist ----------
+if (inherits(dist_mat, "dist")) {
+  D <- dist_mat
+  Dmat <- as.matrix(D)
+} else {
+  Dmat <- as.matrix(dist_mat)
+  # 如果只填了下三角，补齐上三角
+  Dmat[upper.tri(Dmat)] <- t(Dmat)[upper.tri(Dmat)]
+  diag(Dmat) <- 0
+  D <- as.dist(Dmat)
+}
+
+# 确保行列名存在（没有就用 1..n）
+if (is.null(rownames(Dmat)) || is.null(colnames(Dmat))) {
+  n <- nrow(Dmat)
+  nm <- as.character(seq_len(n))
+  rownames(Dmat) <- nm
+  colnames(Dmat) <- nm
+}
+
+## ---------- 2) 层次聚类（直接基于你的距离） ----------
+hc <- hclust(D, method = "ward.D2")
+
+## 让树和热图顺序一致（非常关键）
+ord <- hc$order
+labs_ord <- rownames(Dmat)
+Dmat_ord <- Dmat[labs_ord, labs_ord, drop = FALSE]
+
+
+df <- as.data.frame(Dmat_ord) |>
+  tibble::rownames_to_column("row") |>
+  pivot_longer(-row, names_to = "col", values_to = "dist")
+
+# 为了画“半边”，用行列在当前顺序中的位置 i/j
+pos <- tibble::tibble(name = labs_ord, idx = seq_along(labs_ord))
+
+df2 <- df |>
+  left_join(pos, by = c("row" = "name")) |>
+  rename(i = idx) |>
+  left_join(pos, by = c("col" = "name")) |>
+  rename(j = idx) |>
+  mutate(
+    # 只保留下三角（含对角线）；如果你想上三角，把 i >= j 改成 i <= j
+    keep = i <= j,
+    diag = (i == j),
+    # 对角线单独灰色：用一个填充值标记
+    fill_val = ifelse(diag, NA_real_, dist),
+    label = ifelse(keep, sprintf("%.2f", dist), NA_character_)
+  ) |>
+  filter(keep)
+
+# 暖色调：近（小）= 深，远（大）= 浅
+# 用 scale_fill_gradient 的 low/high 控制：low 是小值颜色，high 是大值颜色
+p_tri <- ggplot(df2, aes(x = col, y = row)) +
+  # 先画三角区的距离
+  geom_tile(aes(fill = fill_val), color = "white", linewidth = 0.3) +
+  # 再把对角线盖成灰色方块
+  geom_tile(
+    data = df2 |> filter(diag),
+    fill = "grey70",
+    color = "white",
+    linewidth = 0.3
+  ) +
+  # 写数值（对角线也会写 0.00；如果不想写对角线，下面 filter(!diag)）
+  geom_text(aes(label = label), size = 3) +
+  scale_fill_gradient(
+    low = "#7f0000",   # 小距离：深暖色
+    high = "#fff5eb",  # 大距离：浅暖色
+    na.value = "grey70",
+    name = "Distance"
+  ) +
+  coord_fixed(ratio = 1) +
+  labs(x = NULL, y = NULL) +
+  theme_minimal(base_size = 16) +
+  theme(
+    axis.text = element_text(color="black"),
+    panel.grid = element_blank(),
+    legend.position = "right"
+  )
+
+ggsave("outplots/fig2/sup2_b.Euclidean.heatmap.pdf",p_tri,width=6,height=6,dpi=300)
+```
+
+
+## sup2_c cluster间真实邻居情况与临近显著性水平
+```{r}
+## 先对Cluster间的位置有一个量化分析
+## 这里我们很严格，只看邻居分布
+```{r}
+
+# 单样本比例检验（one-sample proportion test）
+all.roi.nei.mat <- data.frame(matrix(nrow=7,ncol=7))
+all.roi.nei.pval <- data.frame(matrix(nrow=7,ncol=7))
+out3 <- c()
+for (i in 1:7){
+    input <- roi_info.split[roi_info.split$cluster == i,]
+    input <- rbind(data.frame(chr=input$chr,start=input$start-200,end=input$start-10,peak=input$peak),data.frame(chr=input$chr,start=input$end+10,end=input$end+200,peak=input$peak))
+    out <- bt.intersect(a=roi_info.split,b=input,wa=T) %>% unique
+    tab1 <- as.data.frame(table(out$V6))
+    tab2 <- as.data.frame(table(roi_info.split$cluster))
+    out1 <- c()
+    out2 <- c()
+    for (j in 1:7){
+        k=tab1[j,2]
+        n=sum(tab1[,2])
+        p0=tab2[j,2]/sum(tab2[,2])
+        result <- prop.test(x = k,n = n,p = p0,alternative = "greater",correct = T)
+        out1 <- c(out1,result$estimate-p0) # 如果比例高于总体为正，低于总体为负
+        out2 <- c(out2,ifelse(result$p.value<=2.2e-16,2.2e-16,result$p.value))
+    }
+    out2 <- -log10(out2)
+    all.roi.nei.mat[i,] <- out1
+    all.roi.nei.pval[i,] <- out2
+    out3 <- c(out3,nrow(out)/nrow(input))
+}
+all.roi.nei.mat$X8 <- out3
+
+
+
+library(ggplot2)
+library(reshape2)
+# 将矩阵转换为长格式数据框
+rownames(all.roi.nei.mat) <- paste0('cluster',1:7)
+colnames(all.roi.nei.mat) <- c(paste0('cluster',1:7),"sum")
+df <- as.data.frame(all.roi.nei.mat[,1:7]) %>%
+  rownames_to_column(var = "row")
+# 转为长格式
+mat_long <- df %>%
+  pivot_longer(cols = -row, names_to = "col", values_to = "value")
+
+rownames(all.roi.nei.pval) <- paste0('cluster',1:7)
+colnames(all.roi.nei.pval) <- paste0('cluster',1:7)
+
+
+df <- as.data.frame(all.roi.nei.pval) %>%
+  rownames_to_column(var = "row")
+# 转为长格式
+pval_long <- df %>%
+  pivot_longer(cols = -row, names_to = "col", values_to = "pval")
+
+# 合并两个数据集
+data <- cbind(mat_long, pval=pval_long$pval)
+data$row <- factor(data$row,levels=paste0('cluster',1:7))
+data$col <- factor(data$col,levels=paste0('cluster',7:1))
+alpha <- 0.05
+
+## 2. 计算显著性对应的 -log10(p)，不显著设为 NA
+data2 <- data %>%
+  mutate(
+    logp = ifelse(pval > 1.301, pval, NA_real_)
+  )
+
+## 3. 画图：
+##    - 背景：显著的格子用 logp 从浅红到深红；不显著的格子统一浅灰（na.value）
+##    - value > 0：用圆形；value < 0：用三角形；大小按绝对值（越大越大）
+
+p <- ggplot(data2, aes(x = row, y = col)) +
+  # 热图背景：显著部分按 logp 渐变，不显著为浅灰
+  geom_tile(aes(fill = logp), color = "grey70", linewidth = 1.0) +
+
+  # 正值：圆形（21：带描边的实心圆），大小按 value
+  geom_point(
+    data = ~ subset(.x, !is.na(logp)),
+    aes(size = value),
+    shape = 21,
+    stroke = 1,
+    color = "black"
+  ) +
+
+  # 负值：上三角（24：带描边的空心三角，可用 fill 填色），大小按绝对值
+  geom_point(
+    data = ~ subset(.x, is.na(logp)),
+    aes(size = 0.02),      # == abs(value) 因为这里 value < 0
+    shape = 24,
+    stroke = 1.0,
+    color = "black"
+  ) +
+
+  # 背景颜色：显著从浅红到深红，不显著 NA -> 浅灰
+  scale_fill_gradientn(
+    colours  = c("#fee2e2", "#fca5a5", "#ef4444", "#b91c1c"), # 浅红到深红
+    na.value = "snow",                                      # 不显著：浅灰
+    name     = "-log10(p)",
+    limits   = range(data2$logp, na.rm = TRUE)
+  ) +
+
+  # 点大小：统一按绝对值解释
+  scale_size_continuous(
+    range = c(2, 10),
+    name  = "|value|"
+  ) +
+
+  coord_fixed(ratio = 1) +
+  theme_minimal(base_size = 16) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(color="black",angle = 45, hjust = 1, vjust = 1),
+    axis.text.y = element_text(color="black"),
+    legend.position  = "right"
+  ) 
+ggsave(file = "outplots/fig2/sup2_c.clu1-7.nei.prop.test.pdf",p,width=7,height=6,dpi=300)
+
+
+```
+
+
+
+
+# sup2_d 绘制热图和对应的聚类图
+```{r}
+{
+feats_coverage <- orig_df[,grep("_coverage",colnames(orig_df),value=T)]
+mark_names <- c("DNase", "H3K27ac", "H3K27me3", "H3K36me3", "H3K4me1", "H3K4me3", "H3K9ac", "H3K9me3")
+normalize_df_clipped <- function(df) {
+  # 合并所有数值列成一个向量（自动跳过非数值列？这里假设全是数值）
+  if (!all(sapply(df, is.numeric))) {
+    warning("Data frame contains non-numeric columns. They will be ignored or cause errors.")
+  }
+  
+  combined_vec <- unlist(df, use.names = FALSE)
+  combined_vec <- combined_vec[!is.na(combined_vec)]  # 移除 NA
+  
+  min_val <- quantile(combined_vec, probs = 0.05, na.rm = TRUE)
+  max_val <- quantile(combined_vec, probs = 0.95, na.rm = TRUE)
+  
+  # 防止分母为0
+  if (max_val == min_val) {
+    stop("0.05 and 0.95 quantiles are equal; cannot normalize.")
+  }
+  
+  # 定义裁剪函数
+  clip_and_scale <- function(x) {
+    x_clipped <- pmin(pmax(x, min_val), max_val)  # 将 x 限制在 [min_val, max_val]
+    (x_clipped - min_val) / (max_val - min_val)
+  }
+  
+  df_normalized <- as.data.frame(lapply(df, clip_and_scale))
+  names(df_normalized) <- names(df)  # 保留原列名
+  
+  return(df_normalized)
+}
+out1 <- data.frame(matrix(nrow=nrow(feats_df),ncol=24),row.names=rownames(feats_df))
+colnames(out1) <- as.vector(t(outer(mark_names, c("_d0", "_d7", "_d15"), paste, sep = "")))
+for (j in 1:length(mark_names)){
+    l1 <- feats_coverage[,grep(mark_names[j],colnames(feats_coverage),value=T)]
+    l2 <- normalize_df_clipped(l1)
+    out1[,((j-1)*3+1):(j*3)] <- l2
+}
+
+row_annot <- data.frame(cluster=cluster_labels,row.names=names(cluster_labels))
+#col_annot <- data.frame(time=rep(c(1,2,3),8),row.names=colnames(out1))
+ord1 <- order(row_annot$cluster)
+#ord2 <- order(col_annot$time)
+out1_sorted <- out1[ord1,]
+#out2_sorted <- out2[ord1,ord2]
+row_ann_sorted <- row_annot[ord1, , drop = FALSE]
+#col_ann_sorted <- col_annot[ord2, , drop = FALSE]
+library(pheatmap)
+gap_rows <- sapply(unique(row_ann_sorted[,1]),function(x) which(row_ann_sorted[,1] == x)[1])[-1]-1
+gap_cols <- seq(3,24,3)
+
+
+library(dendextend)
+order_within_group_hclust <- function(mat, row_annot, dist_method = "euclidean", hclust_method = "ward.D2"){
+  ord_all <- character(0)
+  for(g in unique(row_annot$cluster)){
+    idx <- which(row_annot$cluster == g)
+    sub <- mat[idx, , drop = FALSE]
+    if(nrow(sub) <= 2){
+      ord_all <- c(ord_all, rownames(sub))
+      next
+    }
+    d <- dist(sub, method = dist_method)
+    hc <- hclust(d, method = hclust_method)
+    ord <- rownames(sub)[hc$order]
+    ord_all <- c(ord_all, ord)
+  }
+  mat[ord_all, , drop = FALSE]
+}
+out1_hclust <- order_within_group_hclust(out1_sorted,row_ann_sorted)
+row_ann_hclust <- data.frame(group=row_ann_sorted[match(rownames(out1_hclust),rownames(row_ann_sorted)),1],row.names=rownames(out1_hclust))
+row_ann_hclust$group <- as.character(row_ann_hclust$group)
+out1_hclust <- out1_hclust[,c(1:3,4:6,13:15,16:18,19:21,10:12,22:24,7:9)]
+
+
+library(RColorBrewer)
+#pdf("outplots/hclust.pheatmap.pdf",width=4000,height=6000)
+
+# --- 1. 定义热图主体颜色 (更高级的红黄蓝) ---
+# 使用 11 个渐变级数让过渡更细腻
+my_heatmap_color <- colorRampPalette(rev(brewer.pal(n = 11, name = "RdYlBu")))(101)
+my_heatmap_color <- colorRampPalette(c("#5171be", "#f7f7f7", "#EB5354"))(101)
+
+# --- 2. 定义注释颜色 (体现抑制/激活的梯度) ---
+# 1-4 抑制递减 (深蓝 -> 浅天蓝)
+# 5-7 激活递减 (深红 -> 浅橙)
+#row_ann_hclust$cluster <- as.character(row_ann_hclust$group)
+
+# 2. 定义颜色列表 (注意：这里的 "cluster" 必须和 row_ann_hclust 的列名一模一样
+
+ann_colors <- list(
+    group = c(
+        "1" = "#1F4E8C", # 深蓝
+        "2" = "#76A9DC", # 浅蓝    
+        "3" = "#F2D36B", # 浅金黄   
+        "4" = "#B8860B", # 深芥末黄  
+        "5" = "#C6283D", # 最强红   
+        "6" = "#E06C4F", # 橙红
+        "7" = "#e29fbb"  # 紫红
+    )
+)
+
+# --- 2. 重新计算分割线 ---
+# 如果你想在 d0, d7, d15 之间都有线：
+# 假设总共 24 列，每 3 列是一个大组，你想在 1|2, 2|3 之间也加线
+# 那么 gaps_col 就不只是 3, 6, 9... 而是 1, 2, 3, 4, 5, 6... 
+# 但这样线太密会很难看。建议只在每 3 列（大组）加粗线，内部细线通过导出 PDF 后观察。
+# 这里我们先恢复正常的组间分割：
+all_gaps_col <- seq(3, ncol(out1_hclust) - 1, by = 3)
+
+# --- 3. 绘图 (修正版) ---
+png("outplots/fig2/sup2_d.hclust.pheatmap.png",width=3000,height=3000,res=300)
+pheatmap(
+    as.matrix(out1_hclust), 
+    scale = "none",
+    cluster_cols = FALSE,
+    cluster_rows = FALSE, 
+    
+    # 【关键修改 1】去掉边框，解决“白茫茫”和 Warning 问题
+    border_color = NA, 
+    
+    # 注释
+    annotation_row = row_ann_hclust, 
+    annotation_colors = ann_colors,
+    
+    # 分割线
+    gaps_row = gap_rows,
+    gaps_col = all_gaps_col,
+    
+    # 颜色
+    color = my_heatmap_color,
+    
+    # 【关键修改 2】如果还是觉得颜色淡，可以手动设置断点 (Breaks)
+    # 假设你的数据范围是 0-1，下面的设置会让中间色调更靠向 0.5
+    # breaks = seq(0, 1, length.out = 101), 
+    
+    # 渲染优化
+    use_raster = TRUE,
+    raster_device = "png", 
+    raster_quality = 5, 
+    
+    show_rownames = FALSE,
+    show_colnames = FALSE,
+    legend_breaks = c(0, 0.5, 1), 
+    legend_labels = c("Low", "Mid", "High"),
+    main = "Refined Chromatin Landscape"
+) %>% print()
+dev.off()
+}
+```
+
+
+# ====================================================
+## sup2_e. chromHMM的注释结果
+## 对比chromHMM 我的注释结果怎么样
+```{r}
+chromHMM.annot <- read.table(file = "~/Project/chromHMM/18chrhmm_mixed.annot.tsv",header = T,sep = "\t")
+msc_chromHMM.results <- fread(file = "~/Project/chromHMM/learnmodel/MSC_18_chrhmm_segments.bed",header = F)
+adi_7d_chromHMM.results <- fread(file = "~/Project/chromHMM/learnmodel/ADI-7d_18_chrhmm_segments.bed",header = F)
+adi_14d_chromHMM.results <- fread(file = "~/Project/chromHMM/learnmodel/ADI-14d_18_chrhmm_segments.bed",header = F)
+
+# 先绘制chromHMM注释结果的总体堆叠柱状图
+source("~/Project/chromHMM/src/chromHMM_composition.R")
+
+test.composition <- chromHMM_composition(
+  win = l1.win,
+  chromHMM.annot = chromHMM.annot,
+  time = "MSC",
+  cluster = "cluster1"
+)
+
+all.composition <- data.frame()
+for (i in 1:7){
+    input <- read.table(file = paste0('output/clusters/CRRs/cluster',i,'.bed'))[,1:3]
+    input.bg <- read.table(file = paste0('output/clusters/controls/cluster',i,'.bg.bed'))[,1:3]
+    
+    output <- data.frame()
+    l1 <- bt.intersect(a=msc_chromHMM.results,b=input,wo=T) %>% unique()
+    l1.win <- bt.makewindows(b=as.data.frame(l1),w = 200, i = "src")
+    l1.win <- bt.intersect(a=l1.win,b=input,wa=T) %>% unique()
+    l1.win <- annotate_bed_chromhmm(chromHMM.annot,l1.win)
+    l1.composition <- chromHMM_composition(win = l1.win,chromHMM.annot = chromHMM.annot, time = "MSC",  cluster = paste0('cluster',i))
+
+
+    l2 <- bt.intersect(a=adi_7d_chromHMM.results,b=input,wo=T) %>% unique()
+    l2.win <- bt.makewindows(b=as.data.frame(l2),w = 200, i = "src")
+    l2.win <- bt.intersect(a=l2.win,b=input,wa=T) %>% unique()
+    l2.win <- annotate_bed_chromhmm(chromHMM.annot,l2.win)
+    l2.composition <- chromHMM_composition(win = l2.win,chromHMM.annot = chromHMM.annot, time = "ADI-7d",cluster = paste0('cluster',i))
+
+
+    l3 <- bt.intersect(a=adi_14d_chromHMM.results,b=input,wo=T) %>% unique()
+    l3.win <- bt.makewindows(b=as.data.frame(l3),w = 200, i = "src")
+    l3.win <- bt.intersect(a=l3.win,b=input,wa=T) %>% unique()
+    l3.win <- annotate_bed_chromhmm(chromHMM.annot,l3.win)
+    l3.composition <- chromHMM_composition(win = l3.win,chromHMM.annot = chromHMM.annot, time = "ADI-14d",cluster = paste0('cluster',i))    
+
+    all.composition <- bind_rows(all.composition,l1.composition,l2.composition,l3.composition)
+}
+
+
+annotation.order <- c(
+  "Active promoter",
+  "Active enhancer",
+  "Primed enhancer",
+  "Transcribed",
+  "Mixed/Bivalent",
+  "Polycomb repressed",
+  "Heterochromatin/repeats",
+  "Quiescent"
+)
+
+time.order <- c(
+  "MSC",
+  "ADI-7d",
+  "ADI-14d"
+)
+
+cluster.order <- paste0(
+  "cluster",
+  1:7
+)
+
+plot.data <- all.composition %>%
+  mutate(
+    Annotation = factor(
+      Annotation,
+      levels = annotation.order
+    ),
+
+    Time = factor(
+      Time,
+      levels = time.order
+    ),
+
+    Cluster = factor(
+      Cluster,
+      levels = cluster.order
+    )
+  )
+
+chromHMM.colors <- c(
+  "Active promoter" = "#980000",
+  "Active enhancer" = "#E64B35",
+  "Primed enhancer" = "#F4B183",
+  "Transcribed" = "#70AD47",
+  "Mixed/Bivalent" = "#8064A2",
+  "Polycomb repressed" = "#2E75B6",
+  "Heterochromatin/repeats" = "#595959",
+  "Quiescent" = "#D9D9D9"
+)
+
+source("~/Project/chromHMM/src/chromHMM_composition.R")
+p1 <- make_chromHMM_cluster_panel(
+  data = plot.data,
+  cluster.name = "cluster1",
+  show.y.axis = TRUE
+)
+
+p2 <- make_chromHMM_cluster_panel(
+  data = plot.data,
+  cluster.name = "cluster2"
+)
+
+p3 <- make_chromHMM_cluster_panel(
+  data = plot.data,
+  cluster.name = "cluster3"
+)
+
+p4 <- make_chromHMM_cluster_panel(
+  data = plot.data,
+  cluster.name = "cluster4"
+)
+
+p5 <- make_chromHMM_cluster_panel(
+  data = plot.data,
+  cluster.name = "cluster5",
+  show.y.axis = TRUE
+)
+
+p6 <- make_chromHMM_cluster_panel(
+  data = plot.data,
+  cluster.name = "cluster6"
+)
+
+p7 <- make_chromHMM_cluster_panel(
+  data = plot.data,
+  cluster.name = "cluster7"
+)
+p.chromHMM.composition <- (
+  (
+    p1 | p2 | p3 | p4
+  ) /
+  (
+    p5 | p6 | p7 | guide_area()
+  )
+) +
+
+  plot_layout(
+    guides = "collect",
+    widths = c(
+      1,
+      1,
+      1,
+      1
+    ),
+    heights = c(
+      1,
+      1
+    )
+  )
+
+p.chromHMM.composition <-
+  p.chromHMM.composition &
+
+  theme(
+    legend.position = "right",
+
+    legend.justification = "center",
+
+    legend.box.just = "left",
+
+    legend.title = element_text(
+      face = "bold",
+      size = 9
+    ),
+
+    legend.text = element_text(
+      size = 8.5
+    ),
+
+    legend.key.width = unit(
+      0.45,
+      "cm"
+    ),
+
+    legend.key.height = unit(
+      0.38,
+      "cm"
+    )
+  )
+
+ggsave(
+  filename = "outplots/fig2/sup2_d.ChromHMM_composition.pdf",
+  plot = p.chromHMM.composition,
+  width = 10.5,
+  height = 7,
+  units = "in"
+)
+
+
+
+## 
+
+annotate_bed_chromhmm <- function(annot_map,bed_df) {
+
+  annot_map[,2] <- paste0('E',annot_map[,2])
+  annot_map <- setNames(annot_map$Annotation, annot_map$stage)
+  # 1. 定义 E1-E18 到具体注释的映射表
+  # 2. 确保输入的变量是 data.frame 或者是可修改的格式
+  bed_df <- as.data.frame(bed_df, stringsAsFactors = FALSE)
+  
+  # 3. 替换第四列（假设第四列列名或位置是第4列）
+  # 使用 match 进行高效向量化替换，匹配不上的保持原样
+  matched_idx <- match(bed_df[, 4], names(annot_map))
+  
+  # 只有成功匹配的才替换，避免把原本非 E1-E18 的内容变成 NA
+  to_replace <- !is.na(matched_idx)
+  bed_df[to_replace, 4] <- annot_map[bed_df[to_replace, 4]]
+  
+  # 4. 返回处理后的数据框变量
+  return(bed_df)
+}
+
+source("~/Project/chromHMM/src/chromHMM_enrichment.R")
+
+all.output <- data.frame()
+for (i in 1:7){
+    input <- read.table(file = paste0('output/clusters/CRRs/cluster',i,'.bed'))[,1:3]
+    input.bg <- read.table(file = paste0('output/clusters/controls/cluster',i,'.bg.bed'))[,1:3]
+    
+    output <- data.frame()
+    l1 <- bt.intersect(a=msc_chromHMM.results,b=input,wo=T) %>% unique()
+    l1.win <- bt.makewindows(b=as.data.frame(l1),w = 200, i = "src")
+    l1.win <- bt.intersect(a=l1.win,b=input,wa=T) %>% unique()
+    l1.win <- annotate_bed_chromhmm(chromHMM.annot,l1.win)
+    l1.bg <- bt.intersect(a=msc_chromHMM.results,b=input.bg,wo=T) %>% unique()
+    l1.bg.win <- bt.makewindows(b=as.data.frame(l1.bg),w = 200, i = "src")
+    l1.bg.win <- bt.intersect(a=l1.bg.win,b=input.bg,wa=T) %>% unique()
+    l1.bg.win <- annotate_bed_chromhmm(chromHMM.annot,l1.bg.win)
+
+    out1 <- chromHMM_enrichment(l1.win,l1.bg.win,chromHMM.annot)
+    out1 <- data.frame(Time = "MSC",Cluster = paste0('cluster',i),Annotation = out1$Annotation,log2_fold_enrichment = out1$log2_fold_enrichment,p_value= out1$p_value)
+
+
+    l2 <- bt.intersect(a=adi_7d_chromHMM.results,b=input,wo=T) %>% unique()
+    l2.win <- bt.makewindows(b=as.data.frame(l2),w = 200, i = "src")
+    l2.win <- bt.intersect(a=l2.win,b=input,wa=T) %>% unique()
+    l2.win <- annotate_bed_chromhmm(chromHMM.annot,l2.win)
+    l2.bg <- bt.intersect(a=adi_7d_chromHMM.results,b=input.bg,wo=T) %>% unique()
+    l2.bg.win <- bt.makewindows(b=as.data.frame(l2.bg),w = 200, i = "src")
+    l2.bg.win <- bt.intersect(a=l2.bg.win,b=input.bg,wa=T) %>% unique()
+    l2.bg.win <- annotate_bed_chromhmm(chromHMM.annot,l2.bg.win)
+
+    out2 <- chromHMM_enrichment(l2.win,l2.bg.win,chromHMM.annot)
+    out2 <- data.frame(Time = "ADI-7d",Cluster = paste0('cluster',i),Annotation = out2$Annotation,log2_fold_enrichment = out2$log2_fold_enrichment,p_value= out2$p_value)
+
+
+    l3 <- bt.intersect(a=adi_14d_chromHMM.results,b=input,wo=T) %>% unique()
+    l3.win <- bt.makewindows(b=as.data.frame(l3),w = 200, i = "src")
+    l3.win <- bt.intersect(a=l3.win,b=input,wa=T) %>% unique()
+    l3.win <- annotate_bed_chromhmm(chromHMM.annot,l3.win)
+    l3.bg <- bt.intersect(a=adi_14d_chromHMM.results,b=input.bg,wo=T) %>% unique()
+    l3.bg.win <- bt.makewindows(b=as.data.frame(l3.bg),w = 200, i = "src")
+    l3.bg.win <- bt.intersect(a=l3.bg.win,b=input.bg,wa=T) %>% unique()
+    l3.bg.win <- annotate_bed_chromhmm(chromHMM.annot,l3.bg.win)
+
+    out3 <- chromHMM_enrichment(l3.win,l3.bg.win,chromHMM.annot)
+    out3 <- data.frame(Time = "ADI-14d",Cluster = paste0('cluster',i),Annotation = out3$Annotation,log2_fold_enrichment = out3$log2_fold_enrichment,p_value= out3$p_value)
+
+
+    output <- rbind(out1,out2,out3)
+    all.output <- rbind(all.output,output)
+}
+
+all.enrichment <- all.output %>%
+  mutate(
+    FDR_global = p.adjust(
+      p_value,
+      method = "BH"
+    )
+  )
+
+source("~/Project/chromHMM/src/chromHMM_enrichment.plots.R")
+p.chromHMM <- plot_chromHMM_enrichment(
+  enrichment.data = all.enrichment,
+  effect.col = "log2_fold_enrichment",
+  fdr.col = "FDR_global",
+  color.limit = 4,
+  min.effect.for.star = 1
+)
+
+ggsave(
+  filename = "outplots/fig2/sup2_f.ChromHMM_enrichment_heatmap.pdf",
+  plot = p.chromHMM,
+  width = 13,
+  height = 5.5,
+  units = "in"
+)
+
+ggsave(
+  filename = "outplots/fig2/sup2_f.ChromHMM_enrichment_heatmap.png",
+  plot = p.chromHMM,
+  width = 13,
+  height = 5.5,
+  units = "in",
+  dpi = 600
+)
+
+
+```
+
+
+# Supplementary Table S2
+## 聚类的敏感性分析输出
+```{r}
+clu_sen.outdir <- "output/Sen.out/"
+
+for ()
+
+```
+
+
+

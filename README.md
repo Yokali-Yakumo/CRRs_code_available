@@ -1,274 +1,188 @@
-# CRR identification and clustering pipeline
+# CRRs_code_available
 
-Reproducible pipeline for the **CRR (chromatin regulatory region) identification
-and clustering** part of the manuscript *"<manuscript title>"* — from H3K27me3
-binary tracks to the final set of CRR classes.
+Analysis and figure-reproduction code for the manuscript
 
-The pipeline covers **only**:
+> **Context-dependent H3K27me3 remodeling reveals a transitional chromatin state
+> during adipogenic differentiation**
 
-1. **CRR identification** — stitching consecutive H3K27me3-positive 200 bp bins
-   into segments and defining CRRs by a length threshold (main definition:
-   ≥ 7 consecutive bins).
-2. **Integration and ROI construction** — merging CRRs across the three
-   differentiation stages (MSC / preadipocyte / adipocyte), splitting long
-   merged intervals, and producing one unified set of ROIs.
-3. **Feature matrix** — 299-dimensional features (spatial, temporal, pairwise
-   Jaccard, histone-dynamics concordance) per ROI.
-4. **QC + (partial) standardization + MFA**.
-5. **Graph-based clustering** (Seurat, Leiden) on the MFA embedding → **7 CRR
-   classes**.
-6. **Two sensitivity analyses**:
-   - **#1 CRR length threshold** (`run_04`): the whole chain is re-run at
-     thresholds of ≥ 4 / 5 / 7 / 9 bins.
-   - **#2 clustering parameters** (`run_05`): sweep of the MFA
-     variance-explained threshold, clustering resolution and `k.param`, scored
-     by Silhouette width, η² of the switch score, Calinski–Harabasz,
-     Davies–Bouldin and bootstrap ARI.
-
-Everything downstream of clustering (trajectory inference, genome annotation,
-differential expression, GO, regressions, S-LDSC, ...) is **not** part of this
-repository.
-
-> The code in this repository is an English-commented, dependency-clean
-> refactoring of the original analysis scripts. All algorithm semantics are
-> preserved; the list of intentional deviations can be found in
-> [Deviations from the original scripts](#deviations-from-the-original-scripts).
+This repository contains the code behind the definition of **CRRs (contiguous
+repressive regions)**, their integration across three stages of human
+adipogenic differentiation, the clustering that resolves the CRR classes, and
+the plotting code that draws the main figures.
 
 ---
 
-## Pipeline overview
-
-```
-            input/  (whole-genome 0/1 matrices + 200 bp window BED)
-                |
-                v
-  run_01_prepare_input.R   materialize + cache inputs
-                |
-                v
-  run_02_call_crrs.R       stitch K27me3+ bins -> segments (all lengths)
-                |
-                +----------------------------+
-                v                            v
-  run_03_cluster_main.R          run_04_sensitivity_length.R
-  (main run, len >= 7)           (whole chain for len >= 4/5/7/9,
-  -> 7 CRR classes                 figures + tables per threshold)
-                |
-                v
-  run_05_sensitivity_clustering.R
-  (parameter grid, validity/stability metrics)
-```
-
-Runs are independent R scripts that read/write only inside the repository
-(relative to the repository root) and share intermediate files under `work/`.
-They are meant to be launched in order with `Rscript`.
-
-## Repository structure
+## Repository layout
 
 ```
 .
-├── README.md
-├── .gitignore
-├── config/
-│   └── params.R              # ALL tunable parameters (single source of truth)
-├── input/                    # raw data - NOT version-controlled
-│   └── README.md             # data format, provenance, how to regenerate
-├── src/
-│   ├── lib/                  # function libraries (English comments)
-│   │   ├── common.R          # package loading, manuscript checkpoints
-│   │   ├── io.R              # reading/materializing inputs
-│   │   ├── crr_call.R        # CRR stitching (length thresholds)
-│   │   ├── merge_split.R     # cross-stage merge, long-ROI split, re-naming
-│   │   ├── roi_features.R    # ROI binary arrays + feature extraction
-│   │   ├── qc_standardize.R  # NA handling, correlation pruning, standardization
-│   │   ├── mfa_cluster.R     # MFA feature groups, Seurat clustering, switch score
-│   │   ├── sensitivity_metrics.R  # validity/stability metrics (sensitivity #2)
-│   │   ├── pipeline.R        # shared analysis chain used by run_03 and run_04
-│   │   └── plots.R           # UMAP / radar / z-score heatmap figures
-│   ├── run_01_prepare_input.R
-│   ├── run_02_call_crrs.R
-│   ├── run_03_cluster_main.R
-│   ├── run_04_sensitivity_length.R
-│   └── run_05_sensitivity_clustering.R
-├── work/                     # intermediate RDS objects (not version-controlled)
-└── output/                   # deliverables (not version-controlled)
-    ├── figures/
-    │   ├── main/                     # main-run figures
-    │   ├── length_sensitivity/       # sensitivity #1 figures (per threshold)
-    │   └── clustering_sensitivity/   # sensitivity #2 figures (optional)
-    └── tables/
-        ├── main_roi_clusters.tsv
-        ├── main_cluster_sizes.tsv
-        ├── crr_length_counts_all_stages.tsv
-        ├── crrs_len7_<stage>.bed
-        ├── length_sensitivity/...
-        └── clustering_sensitivity/
-            ├── grid_metrics.tsv
-            └── threshold_*_resolution_*_k.param_*.output.tsv
+├── README.md              this file
+├── pipeline/              PART 1 — the analysis chain (CRR definition → clustering)
+├── figures/               PART 2 — main-figure plotting scripts
+├── tools/                 shared command-line tools (gene assignment, controls, regression)
+└── data/                  input data: format, provenance and conversion
 ```
+
+---
+
+## Scope: what is shared and what is not
+
+We deliberately share the part of the analysis that defines and characterises
+the CRR framework, plus the code that draws the published figures. Exploratory
+and lab-specific scripts that are not required to reproduce the manuscript's
+main claims are not included.
+
+### Shared
+
+| Part | Contents |
+| --- | --- |
+| `pipeline/` | H3K27me3 bin stitching and CRR length-threshold selection; cross-stage merging and long-ROI splitting; construction of the feature matrix (spatial, temporal, pairwise Jaccard, histone-dynamic-concordance); QC, correlation pruning and (partial) standardisation; MFA; graph-based clustering; **both** sensitivity analyses (CRR length threshold 4/5/7/9 bins; clustering parameter grid). |
+| `figures/` | Plotting code for main Figures 1–6 and the small helper functions they call. |
+| `tools/` | `Call_Proximal_Target_Genes_v2.R` (proximity-based CRR→gene assignment), `match_control_regions.py` (length/GC-matched control regions), `gene_crr_multivariable_regression.R` (gene-level epigenetic-burden regression used for the Fig. 3e coefficients). |
+
+### Not shared
+
+* Exploratory analyses that are not reported in the manuscript (Hi-C/loop
+  annotations, ABC/LOLA enrichment runs, fuzzy gene clustering, locus-by-locus
+  working scripts, and other intermediate exploratory code).
+* The full **S-LDSC (stratified LD score regression)** modelling pipeline used
+  for the heritability analyses. The plotting code for those panels is shared
+  in `figures/Fig6_GWAS.Rmd`; the annotation construction, masking and
+  standardised-effect-size computation are not.
+* Upstream sequencing-data processing (FASTQ → BAM → ChromHMM binarisation).
+  The binarised matrices that this repository starts from are deposited at GEO
+  (see below).
+* Laboratory-specific raw-data reduction (e.g. CUT&Tag-qPCR and qRT-PCR
+  calculations) and figure panels assembled outside R.
+
+Requests for the non-shared scripts can be addressed to the corresponding
+authors.
+
+---
+
+## A note on the clustering step
+
+The number of CRR clusters is **not a fixed quantity**: it depends on the MFA
+variance-explained threshold, the clustering resolution and the graph
+`k.param` — exactly the parameters swept by
+`pipeline/src/run_05_sensitivity_clustering.R`.
+
+What is robust across these settings is the **two-neighbourhood structure** of
+the UMAP embedding: a group of predominantly repressive CRRs and a group
+carrying activation-associated features. This is the structure the manuscript
+refers to as *clusters 1–4* and *clusters 5–7*, and it is what the downstream
+biological conclusions rest on.
+
+The seven-cluster solution reported in the manuscript is the particular
+solution selected by the internal-validity and bootstrap-stability criteria
+implemented in that sensitivity analysis. The code is provided so that the
+choice can be inspected and re-run rather than taken on trust; a user who
+changes the resolution or `k.param` may obtain a different number of clusters
+while the two-neighbourhood structure persists.
+
+---
+
+## Data
+
+The starting point of `pipeline/` is the **binarised, genome-wide 200-bp
+matrices** for the three differentiation stages (MSCs, preadipocytes,
+adipocytes; DNase-seq plus seven histone modifications). These are deposited in
+the **Gene Expression Omnibus under accession [GSE346087](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE346087)**,
+together with the derived CRR interval files.
+
+The deposited matrices carry coordinates (`chr`, `start`, `end` + 8 mark
+columns); the pipeline expects the mark columns only, aligned row-by-row with a
+200-bp window BED file. Both are regenerated from the deposit by a single
+script:
+
+```bash
+bash pipeline/scripts/01_geo_matrices_to_pipeline_input.sh <GEO_processed_dir> pipeline/input
+```
+
+See [`data/README.md`](data/README.md) for file-by-file details.
+
+Large input files, intermediate objects and outputs are **not** version-controlled
+(see `.gitignore`).
+
+### Verified reproduction
+
+With the GEO-deposited matrices as input, `pipeline/` reproduces the
+manuscript's CRR counts:
+
+| Stage | CRRs (≥ 7 consecutive H3K27me3-positive bins) |
+| --- | --- |
+| MSCs (d0) | 14,800 |
+| preadipocytes (d7) | 20,468 |
+| adipocytes (d14) | 13,541 |
+
+and `run_03` merges them into the **37,006** unified, non-overlapping regions
+used as clustering input.
+
+---
 
 ## Requirements
 
-* **R ≥ 4.1** (developed and tested on R ≥ 4.2 under Linux).
-* CRAN packages: `data.table`, `dplyr`, `tidyr`, `purrr`, `ggplot2`, `patchwork`,
-  `reshape2`, `vioplot`, `abind`, `igraph`, `RColorBrewer`, `fmsb`, `pheatmap`,
-  `cluster`, `FactoMineR`, `mclust`, `rstatix`, `scales`, `tibble`, `uwot`,
-  `FNN`.
-* Bioconductor packages: `GenomicRanges`, `IRanges`, `S4Vectors`,
-  `rtracklayer`, `GenomeInfoDb`.
-* **Seurat** (v4.x recommended; the scripts use the `RNA` assay, a manually
-  attached `pca` reduction, and `RunUMAP` with the default `uwot` backend).
-* No external command-line tools are required (the original `bedtools` calls
-  were replaced by equivalent `GenomicRanges` overlap tests — see
-  [Deviations](#deviations-from-the-original-scripts)).
+* **R ≥ 4.2** (developed and tested under Linux with R 4.4.3).
+* `pipeline/`: CRAN packages `data.table`, `dplyr`, `tidyr`, `purrr`, `ggplot2`,
+  `patchwork`, `reshape2`, `vioplot`, `abind`, `igraph`, `RColorBrewer`, `fmsb`,
+  `pheatmap`, `cluster`, `FactoMineR`, `mclust`, `rstatix`, `scales`, `tibble`,
+  `uwot`, `FNN`; Bioconductor `GenomicRanges`, `IRanges`, `S4Vectors`,
+  `rtracklayer`, `GenomeInfoDb`; plus **Seurat** (v4.x).
+  *Note:* the UMAP step in `run_03` may pull a Python runtime through
+  `reticulate` on first use; if you prefer to avoid that, run with `uwot`
+  explicitly.
+* `figures/`: per-script lists are given at the top of each file
+  (`ggplot2`, `patchwork`, `Gviz`, `rtracklayer`, `ComplexHeatmap`, `fmsb`,
+  `ggalluvial`, `circlize`, HOMER output tables, …).
+* `tools/`: Python ≥ 3 with `pysam`; R with `data.table`/`GenomicRanges`.
+* No ChromHMM installation, BAM files or Java are needed at this level.
 
-Installation example:
+---
 
-```r
-install.packages(c("data.table","dplyr","tidyr","purrr","ggplot2","patchwork",
-                   "reshape2","vioplot","abind","igraph","RColorBrewer","fmsb",
-                   "pheatmap","cluster","FactoMineR","mclust","rstatix",
-                   "scales","tibble","uwot","FNN"))
-if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")
-BiocManager::install(c("GenomicRanges","IRanges","S4Vectors","rtracklayer",
-                       "GenomeInfoDb"))
-install.packages("Seurat")
-```
+## Running
 
-## Input data
-
-See [input/README.md](input/README.md). In short, the pipeline starts from the
-three whole-genome **binary (0/1) matrices** produced by ChromHMM
-`BinarizeBam` (200 bp bins, Poisson threshold ≤ 0.001) for the three
-differentiation stages, row-aligned to a genome-wide 200 bp window BED.
-
-| file | content |
-| --- | --- |
-| `input/MSCs.wholeGenome.binary.matrix.tsv.gz` | stage d0 (MSC) |
-| `input/Preadipocytes.wholeGenome.binary.matrix.tsv.gz` | stage d7 (preadipocyte) |
-| `input/Adipocytes.wholeGenome.binary.matrix.tsv.gz` | stage d15 (adipocyte) |
-| `input/hg19.window.200bp.bed` | 200 bp windows (rows aligned to matrices) |
-
-Each matrix has one column per mark (8 marks: DNase, H3K27ac, H3K27me3,
-H3K36me3, H3K4me1, H3K4me3, H3K9ac, H3K9me3). The input files are **not**
-tracked in git because of their size; see `input/README.md`.
-
-## Running the pipeline
-
-From the repository root:
+### Part 1 — pipeline
 
 ```bash
-Rscript src/run_01_prepare_input.R    # 1. materialize + cache inputs
-Rscript src/run_02_call_crrs.R        # 2. stitch CRRs (all length segments)
-Rscript src/run_03_cluster_main.R     # 3. main analysis -> 7 classes
-Rscript src/run_04_sensitivity_length.R         # sensitivity #1 (len 4/5/7/9)
-Rscript src/run_05_sensitivity_clustering.R     # sensitivity #2 (full 75-cell grid)
+cd pipeline
+Rscript src/run_01_prepare_input.R          # materialise & cache inputs
+Rscript src/run_02_call_crrs.R              # stitch H3K27me3+ bins into segments
+Rscript src/run_03_cluster_main.R           # main run (≥ 7 bins) → CRR clusters
+Rscript src/run_04_sensitivity_length.R     # sensitivity analysis 1 (4/5/7/9 bins)
+Rscript src/run_05_sensitivity_clustering.R # sensitivity analysis 2 (parameter grid)
 ```
 
-Single-parameter shortcuts:
+All tunable parameters live in `pipeline/config/params.R`; runs read and write
+only inside the repository and share intermediates under `pipeline/work/`.
+Deliverables land in `pipeline/output/`.
 
-```bash
-Rscript src/run_04_sensitivity_length.R 7                  # only len >= 7
-Rscript src/run_05_sensitivity_clustering.R 0.6 0.4 40     # one grid cell
-```
+`run_05` is the one to consult when judging how sensitive the cluster solution
+is — see [A note on the clustering step](#a-note-on-the-clustering-step).
 
-Runtime notes:
+### Part 2 — figures
 
-* Steps 1–3 are the core chain; the length sensitivity re-runs the chain once
-  per threshold and is therefore roughly 4× the cost of step 3. The full grid
-  of sensitivity #2 (75 cells, each with MFA embedding, clustering and
-  bootstrap ARI) is the most expensive part of the repository — reduce the
-  grids in `config/params.R` (`SENS2_GRID`, `SENS2_NBOOT`) for a quicker
-  check.
-* The number of worker cores used by the parallel steps is controlled by
-  `N_CORES` in `config/params.R` (default 20, capped by the machine).
-* The random seed is fixed globally (`SEED = 518`).
+Open the `.Rmd` files under `figures/` in RStudio and knit, or render with
+`rmarkdown::render()`. These scripts read intermediate tables produced by the
+analysis stage; they are **not** end-to-end runnable from the repository alone.
 
-## Configuration
+> **Before running the figure scripts, read [`figures/README.md`](figures/README.md).**
+> Several of them still contain machine-specific absolute paths from the
+> original working environment; that file lists them and ships a helper script
+> (`figures/relocate_paths.sh`) that rewrites them for your own layout.
 
-Every parameter that can be tuned without touching code lives in
-[`config/params.R`](config/params.R):
+---
 
-| parameter | default | meaning |
-| --- | --- | --- |
-| `MAIN_LEN_THRESHOLD` | `7` | CRR definition of the main run (consecutive bins) |
-| `LENGTH_SENS_THRESHOLDS` | `c(4,5,7,9)` | thresholds of sensitivity #1 |
-| `MIN_SEG_LEN` | `2` | shortest stitched segment ever considered |
-| `SPLIT_ROI_THRESHOLD/WIN/MIN_TAIL` | `4000/2000/1000` | long-ROI splitting |
-| `MAX_NA_COL_FRAC_DROP` | `0.5` | drop features with too many NAs |
-| `SMALL_NA_IMPUTE_FRAC` | `0.1` | median-impute low-NA features |
-| `CORR_THRESHOLD` | `0.95` | redundancy pruning |
-| `MAIN_CLUSTER_PARAMS` | `emb 0.6, k 40, res 0.4` | main clustering |
-| `LENGTH_SENS_CLUSTER_PARAMS` | `emb 0.6, k 100, res 0.4` | sensitivity #1 clustering |
-| `SENS2_GRID` | 3×5×5 | sensitivity #2 grid |
-| `CLUSTER_RELABEL` | `4↔5` | optional cosmetic relabel (see below) |
-| `CHECK_MANUSCRIPT` | `TRUE` | print sanity warnings vs published numbers |
+## Citing
 
-## Outputs ↔ manuscript
+If you use this code, please cite the manuscript and the GEO accession
+GSE346087. A `CITATION.cff` file will be added once the manuscript is published.
 
-| output | manuscript item |
-| --- | --- |
-| `output/figures/main/main_umap.{png,pdf}` | UMAP of the 7 CRR classes (Fig. 2a analog) |
-| `output/tables/main_roi_clusters.tsv` | unified ROIs with class labels |
-| `output/tables/main_cluster_sizes.tsv` | class sizes |
-| `output/tables/crr_length_counts_all_stages.tsv` | stitched-region length distribution |
-| `output/tables/crrs_len7_<stage>.bed` | CRR BEDs of the main definition |
-| `output/figures/length_sensitivity/len_<k>/...` | UMAP + per-class radar + binary-signal heatmap for each length threshold (sensitivity #1) |
-| `output/tables/clustering_sensitivity/grid_metrics.tsv` | validity/stability metrics for the full parameter grid (sensitivity #2) |
+## License
 
-The sanity checkpoints (37,006 unified ROIs and 7 classes in the main run) are
-printed as *warnings only* when `CHECK_MANUSCRIPT = TRUE`; they never abort the
-pipeline.
+Not yet selected. Please contact the corresponding authors before reuse beyond
+the peer-review and reproducibility purposes for which it is shared.
 
-## Deviations from the original scripts
+## Contact
 
-The refactoring preserves the numerical results of the original analysis. The
-following intentional differences apply:
-
-1. **Machine-specific state removed**: no `setwd()`, no absolute conda/python
-   paths, no hard-coded core counts; everything is driven by
-   `config/params.R` and repository-relative paths.
-2. **Input materialization is explicit** (`run_01`): the original code loaded
-   two R objects (`merged.binary.Rdata`, `ALL.k27.env.Rdata`) that were created
-   off-line; the pipeline now builds them from the three TSV matrices and the
-   window BED, and caches them under `work/`.
-3. **Bug fixes with no numerical effect**:
-   * removed an undefined `topN` argument from feature extraction;
-   * unified the stage-object naming (`adi_7d`/`adi_15d`) across scripts;
-   * the length-distribution table is computed with consistent `>=` semantics
-     for all three stages (the original had a `<=` typo for the MSC stage);
-   * the length sensitivity no longer depends on an external loop variable.
-4. **`rename_roi_origins` uses GRanges overlaps** instead of one `bedtools`
-   intersect per ROI (identical ≥ 1 bp overlap semantics, vectorized).
-   Likewise, `merge_three_time_beds` keeps the original scripts' exact overlap
-   behaviour (GRanges closed-interval semantics applied to the BED numbers, so
-   CRRs that only touch at a boundary coordinate are merged) because the whole
-   downstream chain was tuned on the ROI sets produced that way.
-5. **Time labels**: the length-sensitivity heatmap previously labelled the
-   third time point "d14" although the data/features use "d15"; this cosmetic
-   inconsistency is resolved in favour of `d15` everywhere.
-6. **Cosmetic cluster relabelling is optional**: the original main script
-   manually swapped class labels 4 and 5. This is kept as
-   `CLUSTER_RELABEL` in the config and applied only when 7 classes are found.
-   Sensitivity runs never relabel (as in the original).
-7. **UMAP backend**: `RunUMAP` now uses Seurat's default `uwot` backend (the
-   original environment called `reticulate::use_python()`; this does not
-   affect clustering).
-8. **Sensitivity #2 performance**: the MFA is computed once on the main-run
-   feature matrix and reused across the grid (identical MFA object per
-   combination as before; no change to results). The bootstrap ARI replicates
-   consume the global RNG stream after a single `set.seed`, exactly like the
-   original function (no per-replicate seeding).
-9. **Length thresholds**: sensitivity #1 evaluates `≥ 4/5/7/9` bins (the
-   original shipped script used `5/7/9`; `4` was added to match the
-   manuscript's top-30% threshold).
-
-If any of these choices conflicts with the published figures, revert the
-corresponding parameter or open an issue — numbers should be easy to restore.
-
-## License and citation
-
-License: not yet selected — please add a `LICENSE` file before a public
-release if you intend to publish the repository.
-
-If you use this pipeline, please cite the associated manuscript (add the
-citation/DOI here once available).
+Corresponding authors: Yan Guo (guoyan253@xjtu.edu.cn) and
+Tie-Lin Yang (yangtielin@xjtu.edu.cn).

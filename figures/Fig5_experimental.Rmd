@@ -1,0 +1,655 @@
+
+<!--
+Reproduces experimental/schematic panels of main Figure 5: CEBPA locus track and nile-red staining result plots. Inputs (examples): output/fig5_c.nile_red.stain.Results.csv. Outputs: outplots/fig5_*.pdf.
+--> 
+
+fig5 实验用图
+
+# fig5_a.CEBPA 的轨道图
+```{r}
+
+#!/usr/bin/env Rscript
+
+## ============================================================
+## Gviz genomic track plot
+## Genome: hg19
+## Region: chr19:33,786,000-33,796,000
+## Tracks:
+##   1. Genome coordinate axis
+##   2. Gene annotation
+##   3. ChIP-seq BigWig 1
+##   4. ChIP-seq BigWig 2
+##   5. BED annotation 1
+##   6. BED annotation 2
+## ============================================================
+
+
+## ------------------------------------------------------------
+## 1. 安装依赖：首次运行时执行
+## ------------------------------------------------------------
+
+# if (!requireNamespace("BiocManager", quietly = TRUE)) {
+#     install.packages("BiocManager")
+# }
+#
+# BiocManager::install(
+#     c(
+#         "Gviz",
+#         "rtracklayer",
+#         "GenomicRanges",
+#         "GenomeInfoDb",
+#         "AnnotationDbi",
+#         "TxDb.Hsapiens.UCSC.hg19.knownGene",
+#         "org.Hs.eg.db"
+#     ),
+#     ask = FALSE,
+#     update = FALSE
+# )
+
+
+## ------------------------------------------------------------
+## 2. 加载依赖
+## ------------------------------------------------------------
+
+suppressPackageStartupMessages({
+    library(Gviz)
+    library(rtracklayer)
+    library(GenomicRanges)
+    library(GenomeInfoDb)
+    library(AnnotationDbi)
+    library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+    library(org.Hs.eg.db)
+})
+
+
+## ------------------------------------------------------------
+## 3. 基础参数
+## ------------------------------------------------------------
+
+genome_name <- "hg19"
+chromosome  <- "chr19"
+
+plot_from <- 33786000L
+plot_to   <- 33796000L
+
+
+## ------------------------------------------------------------
+## 4. 输入文件
+## 请替换为自己的实际路径
+## ------------------------------------------------------------
+
+bw1_file  <- "~/Project/chromHMM/bamsubtract/H3K27me3_15d-7d.log2.50bp.CPM.bw"
+bw2_file  <- "~/Project/chromHMM/bamsubtract/H3K27ac_7d-0d.log2.50bp.CPM.bw"
+
+bed1_file <- "../roi_info.split.bed"
+bed2_file <- "../sgRNA.bed"
+
+
+## 轨道名称
+bw1_name  <- "delta H3K27me3"
+bw2_name  <- "delta H3K27ac"
+
+bed1_name <- "CRRs"
+bed2_name <- "sgRNA"
+
+
+## 输出文件
+output_pdf <- "outplots/fig5/fig5_a.CEBPA.gviz.pdf"
+
+
+## ------------------------------------------------------------
+## 5. 检查输入文件
+## ------------------------------------------------------------
+
+input_files <- c(
+    bw1_file,
+    bw2_file,
+    bed1_file,
+    bed2_file
+)
+
+missing_files <- input_files[!file.exists(input_files)]
+
+if (length(missing_files) > 0L) {
+    stop(
+        paste0(
+            "以下输入文件不存在：\n",
+            paste(missing_files, collapse = "\n")
+        )
+    )
+}
+
+
+## ------------------------------------------------------------
+## 6. 定义绘图区间
+## ------------------------------------------------------------
+
+plot_region <- GRanges(
+    seqnames = chromosome,
+    ranges   = IRanges(
+        start = plot_from,
+        end   = plot_to
+    )
+)
+
+
+## ------------------------------------------------------------
+## 7. BED读取函数
+## ------------------------------------------------------------
+
+read_bed_region <- function(
+    bed_file,
+    region,
+    chromosome
+) {
+
+    bed_gr <- rtracklayer::import(
+        bed_file,
+        format = "BED"
+    )
+
+    ## 如果BED使用19而不是chr19，则只修正当前染色体名称
+    if (!chromosome %in% seqlevels(bed_gr)) {
+
+        chromosome_without_chr <- sub(
+            pattern = "^chr",
+            replacement = "",
+            x = chromosome
+        )
+
+        if (chromosome_without_chr %in% seqlevels(bed_gr)) {
+
+            rename_map <- setNames(
+                chromosome,
+                chromosome_without_chr
+            )
+
+            bed_gr <- GenomeInfoDb::renameSeqlevels(
+                bed_gr,
+                rename_map
+            )
+        }
+    }
+
+    if (!chromosome %in% seqlevels(bed_gr)) {
+        stop(
+            paste0(
+                "BED文件中没有找到染色体 ",
+                chromosome,
+                "：",
+                bed_file
+            )
+        )
+    }
+
+    ## 只保留当前绘图区间
+    bed_gr <- subsetByOverlaps(
+        bed_gr,
+        region,
+        ignore.strand = TRUE
+    )
+
+    if (length(bed_gr) == 0L) {
+        stop(
+            paste0(
+                "BED文件在绘图区间内没有任何重叠区域：\n",
+                bed_file
+            )
+        )
+    }
+
+    bed_gr
+}
+
+
+bed1_gr <- read_bed_region(
+    bed_file  = bed1_file,
+    region    = plot_region,
+    chromosome = chromosome
+)
+
+bed2_gr <- read_bed_region(
+    bed_file  = bed2_file,
+    region    = plot_region,
+    chromosome = chromosome
+)
+
+
+## ------------------------------------------------------------
+## 8. 创建基因组坐标轴
+## ------------------------------------------------------------
+
+axis_track <- GenomeAxisTrack(
+    name        = "",
+    littleTicks = TRUE,
+    add53       = TRUE,
+    add35       = TRUE,
+    cex         = 0.8,
+    fontcolor   = "black",
+    col         = "black"
+)
+
+
+## ------------------------------------------------------------
+## 9. 创建hg19基因注释轨道
+## ------------------------------------------------------------
+
+txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
+
+gene_track <- GeneRegionTrack(
+    txdb,
+    genome               = genome_name,
+    chromosome           = chromosome,
+    start                = plot_from,
+    end                  = plot_to,
+    name                 = "Genes",
+    stacking             = "squish",
+    showId               = TRUE,
+    geneSymbol           = TRUE,
+    transcriptAnnotation = "symbol",
+    fill                 = "#606060",
+    col                  = "#303030",
+    cex                  = 0.8,
+    background.panel     = "white",
+    background.title     = "white",
+    col.title            = "black",
+    col.axis             = "black"
+)
+
+
+## ------------------------------------------------------------
+## 10. 将Entrez Gene ID转换为gene symbol
+## TxDb本身通常只保存Entrez Gene ID
+## ------------------------------------------------------------
+
+gene_ids <- as.character(gene(gene_track))
+
+valid_gene_ids <- (
+    !is.na(gene_ids) &
+    nzchar(gene_ids)
+)
+
+gene_symbols <- rep(
+    NA_character_,
+    length(gene_ids)
+)
+
+if (any(valid_gene_ids)) {
+
+    gene_id_map <- AnnotationDbi::mapIds(
+        org.Hs.eg.db,
+        keys      = unique(gene_ids[valid_gene_ids]),
+        column    = "SYMBOL",
+        keytype   = "ENTREZID",
+        multiVals = "first"
+    )
+
+    gene_symbols[valid_gene_ids] <- unname(
+        gene_id_map[gene_ids[valid_gene_ids]]
+    )
+}
+
+## 如果没有找到symbol，则保留原始gene ID
+missing_symbols <- (
+    is.na(gene_symbols) |
+    !nzchar(gene_symbols)
+)
+
+gene_symbols[missing_symbols] <- gene_ids[missing_symbols]
+
+symbol(gene_track) <- gene_symbols
+
+
+## ------------------------------------------------------------
+## 11. 创建BigWig信号轨道
+## ------------------------------------------------------------
+
+bw1_track <- DataTrack(
+    range            = normalizePath(bw1_file),
+    genome           = genome_name,
+    chromosome       = chromosome,
+    name             = bw1_name,
+    type             = "histogram",
+    baseline         = 0,
+    col.histogram    = "#3B6FB6",
+    fill.histogram   = "#3B6FB6",
+    background.panel = "white",
+    background.title = "white",
+    col.title        = "black",
+    col.axis         = "black",
+    col.frame        = "#BFBFBF",
+    cex.title        = 0.8,
+    cex.axis         = 0.75
+)
+
+bw2_track <- DataTrack(
+    range            = normalizePath(bw2_file),
+    genome           = genome_name,
+    chromosome       = chromosome,
+    name             = bw2_name,
+    type             = "histogram",
+    baseline         = 0,
+    col.histogram    = "#B84A4A",
+    fill.histogram   = "#B84A4A",
+    background.panel = "white",
+    background.title = "white",
+    col.title        = "black",
+    col.axis         = "black",
+    col.frame        = "#BFBFBF",
+    cex.title        = 0.8,
+    cex.axis         = 0.75
+)
+
+
+## ------------------------------------------------------------
+## 12. 创建BED色块轨道
+## ------------------------------------------------------------
+
+make_bed_track <- function(
+    bed_gr,
+    track_name,
+    track_color
+) {
+
+    ## 如果BED存在第4列name，则将其保留为区域ID
+    if ("name" %in% colnames(mcols(bed_gr))) {
+
+        region_ids <- as.character(
+            mcols(bed_gr)$name
+        )
+
+    } else {
+
+        region_ids <- paste0(
+            "region_",
+            seq_along(bed_gr)
+        )
+    }
+
+    AnnotationTrack(
+        range            = bed_gr,
+        genome           = genome_name,
+        chromosome       = chromosome,
+        name             = track_name,
+        id               = region_ids,
+        showId           = FALSE,
+        stacking         = "dense",
+        shape            = "box",
+        fill             = track_color,
+        col              = track_color,
+        background.panel = "white",
+        background.title = "white",
+        col.title        = "black",
+        col.axis         = "black",
+        col.frame        = "#BFBFBF",
+        cex.title        = 0.8,
+        min.height       = 5
+    )
+}
+
+
+bed1_track <- make_bed_track(
+    bed_gr      = bed1_gr,
+    track_name  = bed1_name,
+    track_color = "#E2A13A"
+)
+
+bed2_track <- make_bed_track(
+    bed_gr      = bed2_gr,
+    track_name  = bed2_name,
+    track_color = "#4D9A6A"
+)
+
+
+## ------------------------------------------------------------
+## 13. 组合轨道
+## ------------------------------------------------------------
+
+track_list <- list(
+    axis_track,
+    gene_track,
+    bed2_track,
+    bw1_track,
+    bw2_track,
+    bed1_track
+)
+
+## 各轨道相对高度
+track_sizes <- c(
+    1.0,   # 坐标轴
+    1.4,   # 基因
+    0.6,    # BED 2
+    2.0,   # BigWig 1
+    2.0,   # BigWig 2
+    0.6   # BED 1
+)
+
+
+## ------------------------------------------------------------
+## 14. 绘图函数
+## ------------------------------------------------------------
+
+draw_gviz_tracks <- function() {
+
+    plotTracks(
+        track_list,
+        chromosome           = chromosome,
+        from                 = plot_from,
+        to                   = plot_to,
+        sizes                = track_sizes,
+
+        ## 每个基因只显示最长转录本
+        collapseTranscripts  = "longest",
+
+        transcriptAnnotation = "symbol",
+        geneSymbol           = TRUE,
+        showId               = TRUE,
+
+        main = paste0(
+            chromosome,
+            ":",
+            format(plot_from, big.mark = ",", scientific = FALSE),
+            "-",
+            format(plot_to, big.mark = ",", scientific = FALSE),
+            " (",
+            genome_name,
+            ")"
+        ),
+
+        title.width      = 1.25,
+        fontfamily      = "sans",
+        background.title = "white",
+        col.title       = "black",
+        col.axis        = "black",
+        col.border.title = "#BFBFBF",
+        cex.title       = 0.8,
+        cex.axis        = 0.8
+    )
+}
+
+
+## ------------------------------------------------------------
+## 15. 输出PDF
+## ------------------------------------------------------------
+
+pdf(
+    file        = output_pdf,
+    width       = 12,
+    height      = 8,
+    useDingbats = FALSE
+)
+
+draw_gviz_tracks()
+
+dev.off()
+
+message(
+    "绘图完成：",
+    normalizePath(output_pdf)
+)
+
+```
+
+
+# fig5_d.染色脂滴定量统计图
+```{r}
+
+library(dplyr)
+library(ggplot2)
+
+df <- read.table(file = "output/fig5_c.nile_red.stain.Results.csv", header = TRUE, sep = ",", stringsAsFactors = FALSE)
+
+# 设置组别顺序，并确保测量值是数值型
+df <- df %>%
+  mutate(
+    category = factor(
+      category,
+      levels = c("sgNC", "sgRNA1", "sgRNA2")
+    ),
+    Percentage_Area = as.numeric(Percentage_Area)
+  )
+
+# 计算sgNC的均值
+sgNC_mean <- df %>%
+  dplyr::filter(category == "sgNC") %>%
+  summarise(mean_value = mean(Percentage_Area, na.rm = TRUE)) %>%
+  pull(mean_value)
+
+sgNC_mean
+
+df_normalized <- df %>%
+  mutate(
+    Relative_Area = Percentage_Area / sgNC_mean
+  )
+
+df_normalized %>%
+  dplyr::select(Label, category, Percentage_Area, Relative_Area)
+
+t.test(df_normalized[df_normalized$category == "sgNC","Relative_Area"],
+       df_normalized[df_normalized$category == "sgRNA1","Relative_Area"])
+
+t.test(df_normalized[df_normalized$category == "sgNC","Relative_Area"],
+       df_normalized[df_normalized$category == "sgRNA2","Relative_Area"])
+
+
+summary_df <- df_normalized %>%
+  group_by(category) %>%
+  summarise(
+    n = sum(!is.na(Relative_Area)),
+    mean = mean(Relative_Area, na.rm = TRUE),
+    sd = sd(Relative_Area, na.rm = TRUE),
+    sem = sd / sqrt(n),
+    .groups = "drop"
+  )
+
+summary_df
+
+p <- ggplot() +
+  # 各组均值柱
+  geom_col(
+    data = summary_df,
+    aes(
+      x = category,
+      y = mean,
+      fill = category
+    ),
+    width = 0.68,
+    color = NA
+  ) +
+
+  # 均值 ± SEM
+  geom_errorbar(
+    data = summary_df,
+    aes(
+      x = category,
+      ymin = mean - sem,
+      ymax = mean + sem
+    ),
+    width = 0.24,
+    linewidth = 0.8,
+    color = "black"
+  ) +
+
+  # 归一化后的每张图像数据点
+  geom_jitter(
+    data = df_normalized,
+    aes(
+      x = category,
+      y = Relative_Area
+    ),
+    width = 0.09,
+    height = 0,
+    shape = 15,
+    size = 3,
+    color = "black"
+  ) +
+
+  scale_fill_manual(
+    values = c(
+      "sgNC" = "#888888",
+      "sgRNA1" = "#514CFF",
+      "sgRNA2" = "#B2B2F4"
+    )
+  ) +
+
+  scale_x_discrete(
+    labels = c(
+      "sgNC" = "sgNC",
+      "sgRNA1" = "sgRNA1",
+      "sgRNA2" = "sgRNA2"
+    )
+  ) +
+
+  scale_y_continuous(
+    limits = c(0, NA),
+    expand = expansion(mult = c(0, 0.12))
+  ) +
+
+  labs(
+    x = NULL,
+    y = "Relative Nile Red-positive area"
+  ) +
+
+  theme_classic(base_size = 15) +
+
+  theme(
+    legend.position = "none",
+
+    axis.title.y = element_text(
+      size = 16,
+      color = "black",
+      margin = margin(r = 8)
+    ),
+
+    axis.text.y = element_text(
+      size = 16,
+      color = "black"
+    ),
+
+    axis.text.x = element_text(
+      size = 16,
+      color = "black",
+      angle = 30,
+      hjust = 1,
+      vjust = 1
+    ),
+
+    axis.line = element_line(
+      color = "black"
+    ),
+
+    axis.ticks = element_line(
+      color = "black"
+    ),
+
+    axis.ticks.length = grid::unit(0.3, "cm"),
+
+    plot.margin = margin(12, 12, 12, 12)
+  )
+
+ggsave(p,file = "outplots/fig5_d.nile_red.stain.pdf", width = 4, height = 4.8, units = "in", dpi = 300)
+
+
+```
+
+

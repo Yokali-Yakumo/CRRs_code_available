@@ -1,0 +1,1292 @@
+
+<!--
+Reproduces main Figure 4: mean-signal line/region plots built from deepTools computeMatrix tables plus related annotation panels. Inputs (examples): output/computeMatrix/{H3K27me3,H3K27ac}/{0d,7d,15d}.matrix.tab. Outputs: outplots/fig4*.pdf.
+--> 
+
+
+
+
+fig4.b：绘制clu567的H3K27me3和H3K27ac的mean信号
+```{r}
+library(patchwork)
+# 假设 clu567.mean.df 已经存在且结构如你所示
+# 为了演示，我这里保留你的数据结构，实际运行时直接使用你的 df 即可
+
+clu567.tab.peaks <- c(
+    roi_info.split[roi_info.split$cluster == 5,"peak"],
+    roi_info.split[roi_info.split$cluster == 6,"peak"],
+    roi_info.split[roi_info.split$cluster == 7,"peak"]
+)
+
+l1 <- rbind(
+    data.frame(signal = rowMeans(read.table("~/Project/chromHMM/DiffCluster/output/computeMatrix/H3K27me3/0d.matrix.tab",skip=3,header = F,sep = "\t")[,101:200]),category = "H3K27me3",time = "d0",peak = clu567.tab.peaks),
+    data.frame(signal = rowMeans(read.table("~/Project/chromHMM/DiffCluster/output/computeMatrix/H3K27me3/7d.matrix.tab",skip=3,header = F,sep = "\t")[,101:200]),category = "H3K27me3",time = "d7",peak = clu567.tab.peaks),
+    data.frame(signal = rowMeans(read.table("~/Project/chromHMM/DiffCluster/output/computeMatrix/H3K27me3/15d.matrix.tab",skip=3,header = F,sep = "\t")[,101:200]),category = "H3K27me3",time = "d15",peak = clu567.tab.peaks)
+)
+
+l2 <- rbind(
+    data.frame(signal = rowMeans(read.table("~/Project/chromHMM/DiffCluster/output/computeMatrix/H3K27ac/0d.matrix.tab",skip=3,header = F,sep = "\t")[,101:200]),category = "H3K27ac",time = "d0",peak = clu567.tab.peaks),
+    data.frame(signal = rowMeans(read.table("~/Project/chromHMM/DiffCluster/output/computeMatrix/H3K27ac/7d.matrix.tab",skip=3,header = F,sep = "\t")[,101:200]),category = "H3K27ac",time = "d7",peak = clu567.tab.peaks),
+    data.frame(signal = rowMeans(read.table("~/Project/chromHMM/DiffCluster/output/computeMatrix/H3K27ac/15d.matrix.tab",skip=3,header = F,sep = "\t")[,101:200]),category = "H3K27ac",time = "d15",peak = clu567.tab.peaks)
+)
+
+clu567.mean.df <- rbind(l1,l2)
+clu567.mean.df$time <- factor(clu567.mean.df$time,levels = c("d0","d7","d15"))
+
+
+# 1. 数据拆分
+df_me3 <- clu567.mean.df %>% dplyr::filter(category == "H3K27me3")
+df_ac  <- clu567.mean.df %>% dplyr::filter(category == "H3K27ac")
+
+# 2. 定义颜色梯度
+# H3K27me3: 蓝色系，要求 d0(深) -> d7(中) -> d15(浅)
+# 我们手动指定三个时间的颜色，或者使用 scale_color_manual
+# 这里使用深蓝、中蓝、浅蓝
+cols_me3 <- c("d0" = "#08306B", "d7" = "#4292C6", "d15" = "#C6DBEF") 
+
+# H3K27ac: 红色系，要求 d0(浅) -> d7(中) -> d15(深)
+# 这里使用浅红、中红、深红
+cols_ac  <- c("d0" = "#FCAE91", "d7" = "#FB6A4A", "d15" = "#CB181D")
+
+# 3. 绘制第一个图：H3K27me3 (蓝色系)
+p1 <- ggplot(df_me3, aes(x = time, y = signal, fill = time, color = time)) +
+stat_boxplot(geom = "errorbar",
+               width = 0.2,
+               size = 1.0,
+               position = position_dodge(0.8)) +
+  geom_boxplot(outlier.shape = 21, outlier.size = 1, alpha = 1) +
+  scale_fill_manual(values = cols_me3) +
+  scale_color_manual(values = c("black","black","black")) +
+  labs(title = "", x = "", y = "log2(H3K27me3 CPM +1)") +
+  theme_minimal(base_size = 16) +
+  theme(legend.position = "bottom", # 在下方显示图例
+        legend.direction = "horizontal",
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+        axis.text.x = element_text(size = 10),
+        panel.grid.major.x = element_blank())
+
+# 4. 绘制第二个图：H3K27ac (红色系)
+p2 <- ggplot(df_ac, aes(x = time, y = signal, fill = time, color = time)) +
+stat_boxplot(geom = "errorbar",
+               width = 0.2,
+               size = 1.0,
+               position = position_dodge(0.8)) +
+  geom_boxplot(outlier.shape = 21, outlier.size = 1, alpha = 1) +
+  scale_fill_manual(values = cols_ac) +
+  scale_color_manual(values = c("black","black","black")) +
+  labs(title = "", x = "", y = "log2(H3K27ac CPM +1)") +
+  theme_minimal(base_size = 16) +
+  theme(legend.position = "bottom", # 在下方显示图例
+        legend.direction = "horizontal",
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+        axis.text.x = element_text(size = 10),
+        panel.grid.major.x = element_blank())
+
+# 5. 纵向拼接图形
+# 使用 / 符号表示纵向堆叠
+# plot_layout heights 可以调整上下图的高度比例
+final_plot <- p1 + p2 + 
+  patchwork::plot_layout(width = c(1, 1)) & # 全局主题修饰（如果需要）
+  theme(plot.margin = margin(10, 10, 10, 10))
+
+# 显示图形
+print(final_plot)
+
+# 如果需要保存
+ggsave("outplots/fig4/fig4_b.clu567.signal.mean.pdf", final_plot, width = 5, height = 5,dpi = 300)
+
+
+```
+
+
+# ==============================================================
+## fig4.c 用桑基图展示所有cluster5/6/7的bin的二价情况并展示流向
+```{r}
+input.df <- roi_list[roi_info.split[roi_info.split$cluster %in% c(5,6,7),"peak"]]
+# 加载必要的库
+library(tidyverse)
+library(ggalluvial) # 用于绘制桑基图
+
+# -------------------------------------------------------
+
+# 1. 定义状态判定函数 (向量化处理提高速度)
+get_state <- function(ac, me3) {
+  case_when(
+    ac == 1 & me3 == 1 ~ "Bivalent",
+    ac == 1 & me3 == 0 ~ "H3K27ac_only",
+    ac == 0 & me3 == 1 ~ "H3K27me3_only",
+    ac == 0 & me3 == 0 ~ "None",
+    TRUE ~ NA_character_
+  )
+}
+
+# 2. 处理数据：提取所有 ROI 的状态转换
+print("正在处理 ROI 状态...")
+
+all_bins_states <- map_dfr(1:length(input.df), function(i) {
+  roi <- input.df[[i]]
+  
+  # 提取第 2 列 (H3K27ac) 和 第 3 列 (H3K27me3)
+  # 时间点 1, 2, 3
+  t1_ac <- roi[, 2, 1]
+  t1_me3 <- roi[, 3, 1]
+  
+  t2_ac <- roi[, 2, 2]
+  t2_me3 <- roi[, 3, 2]
+  
+  t3_ac <- roi[, 2, 3]
+  t3_me3 <- roi[, 3, 3]
+  
+  # 构建该 ROI 的状态表
+  data.frame(
+    roi_id = names(input.df)[i],
+    bin_id = 1:nrow(roi),
+    d0 = get_state(t1_ac, t1_me3),
+    d7 = get_state(t2_ac, t2_me3),
+    d15 = get_state(t3_ac, t3_me3)
+  )
+})
+
+# 3. 统计转换频率 (用于桑基图)
+sankey_data <- all_bins_states %>%
+  group_by(d0, d7, d15) %>%
+  summarise(Freq = n(), .groups = 'drop')
+
+# 查看统计结果前几行
+print(head(sankey_data))
+
+# 4. 统计每个时间点的总体比例 (富集水平)
+abundance_stats <- all_bins_states %>%
+  pivot_longer(cols = starts_with("d"), names_to = "Period", values_to = "State") %>%
+  group_by(Period, State) %>%
+  summarise(Count = n(), .groups = 'drop') %>%
+  group_by(Period) %>%
+  mutate(Percentage = Count / sum(Count) * 100)
+
+print(abundance_stats)
+
+library(tidyverse)
+library(ggalluvial)
+
+# 1. 准备数据并严格设置因子顺序 (Order)
+# 顺序从上到下：H3K27ac_only > Bivalent > H3K27me3_only > None
+# 在 ggplot 中，堆叠顺序通常由 Factor Level 决定
+target_levels <- rev(c("None", "H3K27me3_only", "Bivalent", "H3K27ac_only"))
+
+threshold <- sum(sankey_data$Freq) * 0.005 # 过滤掉小于 0.5% 的路径
+sankey_data_final <- sankey_data %>%
+  filter(Freq >= threshold)
+sankey_data_final$d0 <- factor(sankey_data_final$d0, levels = target_levels)
+sankey_data_final$d7 <- factor(sankey_data_final$d7, levels = target_levels)
+sankey_data_final$d15 <- factor(sankey_data_final$d15, levels = target_levels)
+
+# 2. 精确定义配色方案
+my_colors <- c(
+  "H3K27ac_only"  = "#E41A1C", # 鲜明的红/橙，代表 Active
+  "Bivalent"      = "#E6AB02", # 专业的金色/深黄
+  "H3K27me3_only" = "#377EB8", # 稳重的蓝色，代表 Repressed
+  "None"          = "#7F7F7F"  # 加深的灰色，确保流向清晰
+)
+
+# 3. 绘图
+p <- ggplot(sankey_data_final,
+       aes(y = Freq, axis1 = d0, axis2 = d7, axis3 = d15)) +
+  # 绘制流动线条
+  # knot.pos 调高可以让曲线更平滑，减少交叉时的杂乱感
+  geom_alluvium(aes(fill = d0), width = 1/8, alpha = 0.45, knot.pos = 0.4) +
+  # 绘制色块柱子
+  geom_stratum(aes(fill = after_stat(stratum)), width = 1/6, color = "white", size = 0.3) +
+  # 标注文字：白色加粗在深色背景上更清晰
+  geom_text(stat = "stratum", aes(label = after_stat(stratum)), 
+            size = 3, fontface = "bold", color = "black") +
+  # 应用自定义颜色
+  scale_fill_manual(values = my_colors) +
+  # 设置 X 轴
+  scale_x_discrete(limits = c("d0", "d7", "d15"), expand = c(.1, .1)) +
+  # 论文级主题调整
+  theme_minimal(base_size = 16) +
+  theme(
+    text = element_text(family = "sans"),
+    axis.text.y = element_text(color = "black", size = 10),
+    axis.title.y = element_text(size = 12, face = "bold"),
+    axis.text.x = element_text(size = 12, face = "bold", color = "black"),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_line(color = "#EEEEEE"),
+    legend.position = "right",
+    legend.title = element_text(face = "bold")
+  ) +
+  labs(
+    y = "Number of Bins",
+    fill = "Chromatin State",
+    title = "Dynamics of H3K27ac & H3K27me3 Transitions"
+  )
+
+ggsave("outplots/fig4/fig4_c.Sankey_Final_Version.pdf", p, width = 10, height = 8)
+```
+
+
+
+# =================================================
+## fig4_d 用描述性结果说明相较背景二价结构在cluster5，6，7中变多了
+```{r}
+clu567.bed <- roi_info.split[roi_info.split$cluster %in% c(5,6,7),]
+clu567.control <- rbind(read.table("output/clusters/controls/cluster5.bg.bed"),read.table("output/clusters/controls/cluster6.bg.bed"),read.table("output/clusters/controls/cluster7.bg.bed")) %>% unique()
+clu567.control <- bt.sort(i=clu567.control,faidx="~/reference/hg19.chrom.sizes")
+
+clu567.control$V2 <- round(clu567.control$V2/200)*200
+clu567.control$V3 <- round(clu567.control$V3/200)*200
+clu567.control$V4 <- paste0(clu567.control$V1,":",clu567.control$V2,":",clu567.control$V3)
+
+clu567.control.counts <- c(0,0,0)
+for (i in 1:nrow(clu567.control)){
+    input <- clu567.control[i,]
+    index <- BedInter(input[1,4],msc.all)
+    d0 <- msc.all[index,]
+    d7 <- adi_7d.all[index,]
+    d15 <- adi_15d.all[index,]
+    a1 <- ifelse(any(d0$H3K27me3 == 1 & d0$H3K27ac == 1),1,0)
+    a2 <- ifelse(any(d7$H3K27me3 == 1 & d7$H3K27ac == 1),1,0)
+    a3 <- ifelse(any(d15$H3K27me3 == 1 & d15$H3K27ac == 1),1,0)
+    clu567.control.counts <- clu567.control.counts + c(a1,a2,a3)
+    #print(i)
+}
+
+
+clu567.control.biv.d0 <- bt.intersect(a=clu567.control,b=msc.all[msc.all$H3K27ac == 1 & msc.all$H3K27me3 == 1,],wa=T) %>% unique()
+clu567.control.biv.d7 <- bt.intersect(a=clu567.control,b=adi_7d.all[adi_7d.all$H3K27ac == 1 & adi_7d.all$H3K27me3 == 1,],wa=T) %>% unique()
+clu567.control.biv.d15 <- bt.intersect(a=clu567.control,b=adi_15d.all[adi_15d.all$H3K27ac == 1 & adi_15d.all$H3K27me3 == 1,],wa=T) %>% unique()
+
+clu567.bed.biv.d0 <- bt.intersect(a=clu567.bed,b=msc.all[msc.all$H3K27ac == 1 & msc.all$H3K27me3 == 1,],wa=T) %>% unique()
+clu567.bed.biv.d7 <- bt.intersect(a=clu567.bed,b=adi_7d.all[adi_7d.all$H3K27ac == 1 & adi_7d.all$H3K27me3 == 1,],wa=T) %>% unique()
+clu567.bed.biv.d15 <- bt.intersect(a=clu567.bed,b=adi_15d.all[adi_15d.all$H3K27ac == 1 & adi_15d.all$H3K27me3 == 1,],wa=T) %>% unique()
+
+
+df <- data.frame(
+    category=c("control","clu567","control","clu567","control","clu567"),
+    period=c("d0","d0","d7","d7","d14","d14"),
+    ratio=c(nrow(clu567.control.biv.d0)/nrow(clu567.control),nrow(clu567.bed.biv.d0)/nrow(clu567.bed),nrow(clu567.control.biv.d7)/nrow(clu567.control),nrow(clu567.bed.biv.d7)/nrow(clu567.bed),nrow(clu567.control.biv.d15)/nrow(clu567.control),nrow(clu567.bed.biv.d15)/nrow(clu567.bed))
+)
+df$category <- factor(df$category,c("control","clu567"))
+df$period <- factor(df$period,c("d0","d7","d14"))
+
+p <- ggplot(df, aes(x = period, y = ratio, fill = category)) +
+  # 使用 position_dodge 让柱子并列
+  geom_bar(stat = "identity", position = position_dodge(width = 0.8), width = 0.7) +
+  # 设置颜色：Control 用灰色，ROI (clu567) 用亮眼的橙色（代表 Bivalent）
+  scale_fill_manual(values = c("control" = "#BDC3C7", "clu567" = "#E67E22")) +
+  # 转换成百分比显示
+  scale_y_continuous(labels = scales::percent_format(), expand = expansion(mult = c(0, 0.1))) +
+  labs(
+    y = "Proportion of H3K27me3-ac Bivalent State",
+    fill = "Region Type"
+  ) +
+  theme_classic(base_size = 16) +
+  theme(
+    legend.position = "right",
+    axis.text = element_text(color = "black"),
+    axis.title = element_text(face = "bold")
+  )
+ggsave("outplots/fig4/fig4_d.control.vs.clu567.bivalent.ratio.pdf",p,width=8,height=5,dpi=300)
+
+
+## 在来一个箱线图展示二价bin占全部的水平
+
+clu567.d0.bivalent <- data.frame(matrix(nrow=nrow(clu567.bed),ncol=3))
+colnames(clu567.d0.bivalent) <- c("peak","cluster","biv")
+clu567.d7.bivalent <- data.frame(matrix(nrow=nrow(clu567.bed),ncol=3))
+colnames(clu567.d7.bivalent) <- c("peak","cluster","biv")
+clu567.d15.bivalent <- data.frame(matrix(nrow=nrow(clu567.bed),ncol=3))
+colnames(clu567.d15.bivalent) <- c("peak","cluster","biv")
+
+
+for(i in 1:nrow(clu567.bed)){
+    input <- roi_list[clu567.bed$peak[i]][[1]]
+    out1 <- length(which(input[,3,1] == 1 & input[,2,1] == 1))/nrow(input)
+    clu567.d0.bivalent[i,] <- c(clu567.bed$peak[i],clu567.bed$cluster[i],out1)
+    out2 <- length(which(input[,3,2] == 1 & input[,2,2] == 1))/nrow(input)
+    clu567.d7.bivalent[i,] <- c(clu567.bed$peak[i],clu567.bed$cluster[i],out2)
+    out3 <- length(which(input[,3,3] == 1 & input[,2,3] == 1))/nrow(input)
+    clu567.d15.bivalent[i,] <- c(clu567.bed$peak[i],clu567.bed$cluster[i],out3)
+}
+clu567.d0.bivalent$biv <- as.numeric(clu567.d0.bivalent$biv)
+clu567.d7.bivalent$biv <- as.numeric(clu567.d7.bivalent$biv)
+clu567.d15.bivalent$biv <- as.numeric(clu567.d15.bivalent$biv)
+
+boxplot(clu567.d0.bivalent$biv[clu567.d0.bivalent$biv!=0],clu567.d7.bivalent$biv[clu567.d7.bivalent$biv!=0],clu567.d15.bivalent$biv[clu567.d15.bivalent$biv!=0])
+
+
+clu567.coltrol.bivalent <- data.frame(matrix(nrow=nrow(clu567.control),ncol=3))
+l1 <- bt.intersect(a=msc.all[msc.all$H3K27ac == 1 & msc.all$H3K27me3 == 1,],b=clu567.control,wo=T)
+l2 <- bt.intersect(a=adi_7d.all[adi_7d.all$H3K27ac == 1 & adi_7d.all$H3K27me3 == 1,],b=clu567.control,wo=T)
+l3 <- bt.intersect(a=adi_15d.all[adi_15d.all$H3K27ac == 1 & adi_15d.all$H3K27me3 == 1,],b=clu567.control,wo=T)
+
+for (i in 1:nrow(clu567.control)){
+    if(any(clu567.control[i,4] %in% l1$V15,clu567.control[i,4] %in% l2$V15,clu567.control[i,4] %in% l3$V15) == F){
+        clu567.coltrol.bivalent[i,] <- c(0,0,0)
+    }
+    else{
+        out1 <- l1[l1$V15 == clu567.control[i,4],]
+        out2 <- l2[l2$V15 == clu567.control[i,4],]
+        out3 <- l3[l3$V15 == clu567.control[i,4],]
+        clu567.coltrol.bivalent[i,] <- c(nrow(out1),nrow(out2),nrow(out3))/((clu567.control[i,3]-clu567.control[i,2])/200)
+    }
+}
+colnames(clu567.coltrol.bivalent) <- c("d0","d7","d15")
+
+boxplot(clu567.coltrol.bivalent$d0[clu567.coltrol.bivalent$d0 !=0],clu567.d0.bivalent$biv[clu567.d0.bivalent$biv!=0],clu567.coltrol.bivalent$d7[clu567.coltrol.bivalent$d7 !=0],clu567.d7.bivalent$biv[clu567.d7.bivalent$biv!=0],clu567.coltrol.bivalent$d15[clu567.coltrol.bivalent$d15 !=0],clu567.d15.bivalent$biv[clu567.d15.bivalent$biv!=0])
+
+library(ggplot2)
+
+# 1. 提取数据并构建长格式数据框
+# 注意：你代码中写的是 d15，描述中写的是 d14，这里统一按你代码中的变量名 d15 处理，你可以根据需要修改标签
+df_list <- list(
+  data.frame(Value = clu567.coltrol.bivalent$d0[clu567.coltrol.bivalent$d0 != 0], Period = "d0", Category = "control"),
+  data.frame(Value = clu567.d0.bivalent$biv[clu567.d0.bivalent$biv != 0],          Period = "d0", Category = "clu567"),
+  
+  data.frame(Value = clu567.coltrol.bivalent$d7[clu567.coltrol.bivalent$d7 != 0], Period = "d7", Category = "control"),
+  data.frame(Value = clu567.d7.bivalent$biv[clu567.d7.bivalent$biv != 0],          Period = "d7", Category = "clu567"),
+  
+  data.frame(Value = clu567.coltrol.bivalent$d15[clu567.coltrol.bivalent$d15 != 0], Period = "d15", Category = "control"),
+  data.frame(Value = clu567.d15.bivalent$biv[clu567.d15.bivalent$biv != 0],          Period = "d15", Category = "clu567")
+)
+
+# 合并所有数据
+plot_data <- do.call(rbind, df_list)
+
+# 2. 设置因子顺序（防止横轴按字母顺序排序变成 d0, d15, d7）
+plot_data$Period <- factor(plot_data$Period, levels = c("d0", "d7", "d15"))
+plot_data$Category <- factor(plot_data$Category, levels = c("control", "clu567"))
+
+p <- ggplot(plot_data, aes(x = Period, y = Value, fill = Category)) +
+  geom_boxplot(outlier.size = 0.8, alpha = 0.8) + # 绘制箱线图
+  scale_fill_manual(values = c("control" = "#BDC3C7", "clu567" = "#E67E22")) + # 指定颜色
+  geom_boxplot(outlier.shape = NA) + # 隐藏离群点避免重复显示
+  labs(
+    x = "Time Period", 
+    y = "Bivalent Level"
+  ) +
+  theme_classic(base_size = 16) + # 使用经典简洁主题
+  theme(
+    axis.text = element_text(color = "black"),
+    legend.position = "right"
+  )
+ggsave("outplots/fig4/fig4_d.control.vs.clu567.bivalent.binratio.pdf",p,width=8,height=5,dpi=300)
+```
+
+
+
+
+# =================================================
+## fig4_e 四象限图展示包含二价结构的ROIs其ac信号的d0-d7对比me3信号d7-d15的变化情况
+```{r}
+clu567.biv.d7.ac <- read.table(file = "/storage/main/projects/bigcgpu-prj/zhangtianpei/Project/chromHMM/DiffCluster/output/fig4.bivalent/clu567.d7.biv.bin.H3K27ac.CPM.tab")
+clu567.biv.d7.me3 <- read.table(file = "/storage/main/projects/bigcgpu-prj/zhangtianpei/Project/chromHMM/DiffCluster/output/fig4.bivalent/clu567.d7.biv.bin.H3K27me3.CPM.tab")
+
+
+clu567.biv.d7.delta <- data.frame(
+    ac_d0d7 = log2(clu567.biv.d7.ac[,5]/clu567.biv.d7.ac[,4]),
+    ac_d7d15 = log2(clu567.biv.d7.ac[,6]/clu567.biv.d7.ac[,5]),
+    me3_d0d7 = log2(clu567.biv.d7.me3[,5]/clu567.biv.d7.me3[,4]),
+    me3_d7d15 = log2(clu567.biv.d7.me3[,6]/clu567.biv.d7.me3[,5])
+)
+
+# clu567.biv.d7.delta <- data.frame(
+#     ac_d0d7 = clu567.biv.d7.ac[,5]-clu567.biv.d7.ac[,4],
+#     ac_d7d15 = clu567.biv.d7.ac[,6]-clu567.biv.d7.ac[,5],
+#     me3_d0d7 = clu567.biv.d7.me3[,5]-clu567.biv.d7.me3[,4],
+#     me3_d7d15 = clu567.biv.d7.me3[,6]-clu567.biv.d7.me3[,5]
+# )
+
+quadrant_data <- clu567.biv.d7.delta %>%
+  mutate(quadrant = case_when(
+    ac_d0d7 > 0 & me3_d7d15 < 0 ~ "ac Up / me3 Down",
+    ac_d0d7 > 0 & me3_d7d15 >= 0 ~ "ac Up / me3 Up",
+    ac_d0d7 <= 0 & me3_d7d15 < 0 ~ "ac Down / me3 Down",
+    ac_d0d7 <= 0 & me3_d7d15 >= 0 ~ "ac Down / me3 Up"
+  )) %>%
+  group_by(quadrant) %>%
+  summarise(count = n()) %>%
+  mutate(perc = paste0(round(count/sum(count)*100, 1), "%"))
+
+# 绘图：展示分布密度和象限比例
+p <- ggplot(clu567.biv.d7.delta, aes(x=ac_d0d7, y=me3_d7d15)) +
+  geom_bin2d(bins = 50) + # 使用热图形式展示点聚集
+  scale_fill_gradient(low = "lightblue", high = "red") +
+  geom_vline(xintercept = 0, linetype="dashed") +
+  geom_hline(yintercept = 0, linetype="dashed") +
+  # 在四个角标注百分比
+  annotate("text", x = 4, y = -2.5, label = paste0("ac Up / me3 Down  ",quadrant_data[3,3]), size=6, color="darkred", fontface="bold") +
+  labs(title="",
+       x="H3K27ac (d0-d7)", y="H3K27me3 (d7-d15)") +
+  theme_bw(base_size = 16)+
+  theme(
+    axis.text = element_text(color = "black")
+  )
+ggsave("outplots/fig4/fig4_d.Quadrant.Proportions.pdf",p,width=5.5,height=5,dpi=300)
+
+
+
+
+```
+
+
+# =================================================
+## fig4_e 用累积分布函数曲线(Cumulative distribution function curve, CDF)来呈现二价ROI和me3ROI在d15-d7的信号是否存在显著差异
+```{r}
+
+clu567.biv.d7.bed <- bt.intersect(a=clu567.bed,b=adi_7d.all[adi_7d.all$H3K27ac == 1 & adi_7d.all$H3K27me3 == 1,],wa=T) %>% unique()
+colnames(clu567.biv.d7.bed) <- colnames(clu567.bed)
+clu567.me3.d7.bed <- clu567.bed[!clu567.bed$peak %in% clu567.biv.d7.bed$peak,]
+
+write.table(clu567.biv.d7.bed,file = "output/fig4.bivalent/clu567.biv.bin.bed",row.names = F,col.names = F,sep = "\t",quote = F)
+write.table(clu567.me3.d7.bed,file = "output/fig4.bivalent/clu567.me3.bin.bed",row.names = F,col.names = F,sep = "\t",quote = F)
+
+clu567.biv.d7.me3 <- read.table(file = "/storage/main/projects/bigcgpu-prj/zhangtianpei/Project/chromHMM/DiffCluster/output/fig4.bivalent/clu567.biv.bin.H3K27me3.CPM.tab")
+
+clu567.me3.d7.me3 <- read.table(file = "/storage/main/projects/bigcgpu-prj/zhangtianpei/Project/chromHMM/DiffCluster/output/fig4.bivalent/clu567.me3.bin.H3K27me3.CPM.tab")
+
+
+l1 <- clu567.biv.d7.me3[,6]-clu567.biv.d7.me3[,5]
+l2 <- clu567.me3.d7.me3[,6]-clu567.me3.d7.me3[,5]
+
+
+
+# 1. 构造绘图数据框
+df_plot <- data.frame(
+  delta = c(l1, l2),
+  group = c(rep("Bivalent", length(l1)), 
+            rep("H3K27me3 only", length(l2)))
+)
+
+# 2. 统计检验 (K-S test)
+# 这个检验专门用于判断两个分布是否有显著位移
+ks_result <- ks.test(l1, l2)
+p_value <- ks_result$p.value
+
+# 打印 P 值
+cat("K-S test P-value:", p_value, "\n")
+
+library(ggplot2)
+
+# 绘图
+p <- ggplot(df_plot, aes(x = delta, color = group)) +
+  stat_ecdf(geom = "step", size = 1.5) + 
+  # 设置颜色：蓝色代表对照组(l2)，橘色/红色代表实验组(l1)
+  scale_color_manual(values = c("Bivalent" = "#E64B35FF", 
+                                "H3K27me3 only" = "#4DBBD5FF")) +
+  theme_bw(base_size = 16) +
+  # 辅助线：x=0 表示信号无变化
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
+  # 辅助线：y=0.5 方便看中位数位移
+  geom_hline(yintercept = 0.5, linetype = "dotted", color = "grey70") +
+  labs(
+    x = "Signal Change (d15 - d7 log2CPM)",
+    y = "Cumulative Proportion",
+    color = "Group at d7"
+  ) +
+  # 优化坐标轴范围，根据你的 summary 数据微调
+  coord_cartesian(xlim = c(-0.5, 0.3)) +
+  theme(
+    legend.position = "top",
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(hjust = 0.5, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5)
+  )
+
+ggsave("outplots/fig4/fig4_e.biv.vs.me3.KS.test.CDF.curve.pdf",p,width=5,height=5,dpi=300)
+
+
+```
+
+
+# =====================================================
+## fig4_g 时空不对称中的空间不对称，即H3K27ac降低与H3K27me3升高的关系
+## 预计从两个角度切入 1. co-enriched CRR的确出现了
+
+
+```{r}
+
+clu567.biv.d7.delta.me3 <- read.table(file = "~/Project/chromHMM/bamsubtract/d7.biv.H3K27me3.tab",skip = 3)
+
+clu567.biv.d7.delta.ac <- read.table(file = "~/Project/chromHMM/bamsubtract/d7.biv.H3K27ac.tab",skip = 3)
+
+library(tidyverse)
+
+get_profile_df <- function(mat, mark_name) {
+  tibble(
+    bin = 1:ncol(mat),
+    mean = colMeans(mat, na.rm = TRUE),
+    sd = apply(mat, 2, sd, na.rm = TRUE),
+    n = nrow(mat),
+    sem = sd / sqrt(n),
+    mark = mark_name
+  )
+}
+
+ac_profile <- get_profile_df(clu567.biv.d7.delta.ac, "H3K27ac")
+me3_profile <- get_profile_df(clu567.biv.d7.delta.me3, "H3K27me3")
+
+df <- bind_rows(me3_profile, ac_profile)
+
+start_bin <- 51
+end_bin   <- 150
+n_bin     <- 200
+
+line_cols <- c(
+  "H3K27ac"  = "#D55E00",
+  "H3K27me3" = "#2C5AA0"
+)
+
+fill_cols <- c(
+  "H3K27ac"  = "#F6C29A",
+  "H3K27me3" = "#AFC6E9"
+)
+
+p <- ggplot(df, aes(x = bin, y = mean, color = mark, fill = mark)) +
+  annotate("rect",
+           xmin = start_bin, xmax = end_bin,
+           ymin = -Inf, ymax = Inf,
+           fill = "grey92", alpha = 0.8) +
+  geom_hline(yintercept = 0, color = "red3", linewidth = 0.8) +
+  geom_vline(xintercept = c(start_bin, end_bin),
+             linetype = "dashed", color = "grey40", linewidth = 0.5) +
+  geom_ribbon(aes(ymin = mean - sem, ymax = mean + sem),
+              alpha = 0.35, color = NA) +
+  geom_line(linewidth = 1.1) +
+  facet_wrap(~mark, nrow = 1, scales = "fixed") +
+  scale_color_manual(values = line_cols) +
+  scale_fill_manual(values = fill_cols) +
+  scale_x_continuous(
+    breaks = c(1, start_bin, end_bin, n_bin),
+    labels = c("-1.0 kb", "Start", "End", "1.0 kb"),
+    expand = c(0.01, 0.01)
+  ) +
+  coord_cartesian(ylim = c(-0.3, 0.6)) +
+  labs(x = NULL, y = NULL) +
+  theme_classic(base_size = 14) +
+  theme(
+    strip.background = element_blank(),
+    strip.text = element_text(face = "bold", size = 13),
+    axis.text = element_text(color = "black", size = 11),
+    axis.title = element_text(color = "black"),
+    legend.position = "none",
+    panel.spacing = unit(1.2, "lines")
+  )
+
+print(p)
+
+ggsave("outplots/fig4/fig4_g.biv.d7.delta.profile.pdf", p, width = 8, height = 4, dpi = 300)
+
+```
+
+
+
+
+
+# =====================================================
+## fig4_h homer作TF富集
+```{r}
+library(patchwork)
+
+isbiv.known.motif <- fread(file = "~/Project/chromHMM/DiffCluster/output/homer/isbiv.vs.nobiv/knownResults.txt",header = T) %>% as.data.frame()
+isbiv.known.motif$`P-value` <- exp(1)^isbiv.known.motif$`Log P-value`
+isbiv.known.motif$FDR <- p.adjust(isbiv.known.motif$`P-value`)
+
+isbiv.known.motif.list <- isbiv.known.motif[c(1,3,5,6,7),"Motif Name"]
+
+nobiv.known.motif <- fread(file = "output/homer/nobiv.vs.isbiv/knownResults.txt",header = T) %>% as.data.frame()
+nobiv.known.motif$`P-value` <- exp(1)^nobiv.known.motif$`Log P-value`
+nobiv.known.motif$FDR <- p.adjust(nobiv.known.motif$`P-value`)
+nobiv.known.motif.list <- nobiv.known.motif[c(1,2,4),"Motif Name"]
+
+
+
+isbiv.homer.motif <- read.table(file = "output/homer/isbiv.vs.nobiv/homerResults.txt",header = T,sep = "\t") %>% as.data.frame()
+isbiv.homer.motif$pvalue <- exp(1)^isbiv.homer.motif$log.P.pvalue
+isbiv.homer.motif$FDR <- p.adjust(isbiv.homer.motif$pvalue)
+
+isbiv.homer.motif.list <- isbiv.homer.motif[c(1,2,3,4,5,9,12,13,22,29),1]
+
+
+nobiv.homer.motif <- read.table(file = "output/homer/nobiv.vs.isbiv/homerResults.txt",header = T,sep = "\t") %>% as.data.frame()
+nobiv.homer.motif$pvalue <- exp(1)^nobiv.homer.motif$log.P.pvalue
+nobiv.homer.motif$FDR <- p.adjust(nobiv.homer.motif$pvalue)
+
+nobiv.homer.motif[c(2,4,7,9,10,15),]
+
+
+df <- read.table(file = "/storage/main/projects/bigcgpu-prj/zhangtianpei/Project/chromHMM/DiffCluster/output/homer/homer.selected.results.txt")
+colnames(df) <- c("TF","category","condition","pvalue")
+
+df <- df %>%
+  mutate(
+    negLogP = -log10(pvalue),
+    # 统一 source 拼写，并设置为因子以控制显示顺序 (know 在前)
+    source = factor(ifelse(category %in% c("know", "known"), "Known Motifs", "De Novo (Homer)"), 
+                    levels = c("Known Motifs", "De Novo (Homer)")),
+    # 设置 condition 顺序 (isbiv 在前)
+    condition = factor(condition, levels = rev(c("isbiv", "nobiv")))
+  )
+
+
+df1 <- df[df$source == "Known Motifs",]
+df1$TF <- factor(df1$TF,levels=unique(df1$TF))
+
+# 图1: Known Motifs (红色系)
+p1 <- ggplot(df1, aes(y = condition, x = TF)) +
+  geom_tile(aes(fill = negLogP), color = "white") +
+  scale_fill_gradient2(
+    low = "white",          # 0 对应的颜色
+    mid = "#fff0e8",        # 1.301 对应的浅红色 (可以替换为你喜欢的浅红代码)
+    high = "#de2d26",       # 最高值对应的深红色
+    midpoint = 1.301,       # 设置中间节点的值
+    limits = c(0, NA),      # 确保从 0 开始
+    name = "Known\n-log10P"
+  ) +
+  theme_bw(base_size = 16) + labs(x = NULL, y = NULL, title = "Known Motifs") 
+
+df2 <- df[df$source == "De Novo (Homer)",]
+df2$TF <- factor(df2$TF,levels=unique(df2$TF))
+
+# 图2: Homer Motifs (黄色/橙色系)
+p2 <- ggplot(df2, aes(y = condition, x = TF)) +
+  geom_tile(aes(fill = negLogP), color = "white") +
+  scale_fill_gradient(low = "#fff7bc", high = "#d95f0e", name = "Homer\n-log10P") +
+  theme_bw(base_size = 16) + labs(x = NULL, y = NULL, title = "De Novo Motifs")
+
+# 组合
+p3 <- p1 | p2 
+ggsave("outplots/fig4/fig4_h.homer.heatmap.pdf", p3, width = 16, height = 5, dpi = 300)
+
+```
+
+
+## ==========================================================================
+## supplementary fig 4 a,b,c,d
+## a. 三个时间的co-enriched CRRs的数量
+## b. 三时间co-enriched CRRs的流向与继承关系
+## c. 三时间co-enriched (最好是独立的) 对应H3K27me3变化趋势以及H3K27ac变化趋势
+## === 上述内容用以确定d7的co-enriched CRRs的中间态核心地位: 数量多, 变化剧烈, 处于分化中期
+## d. d7的co-enriched CRRs针对各个delta数据组合的四象限图, 并挑选出恰当的也就是fig4_e
+## ==========================================================================
+
+```{r}
+# sup4_a 三个时间的co-enriched CRRs的数量
+
+clu567.biv.crrs.counts <- data.frame(
+    period = factor(c("d0","d7","d14"),levels = c("d0","d7","d14")),
+    counts = c(
+        length(which(clu567.d0.bivalent$biv !=0)),
+        length(which(clu567.d7.bivalent$biv !=0)),
+        length(which(clu567.d15.bivalent$biv !=0)))
+)
+
+my_colors <- c("#2b5c8f","#feb24c","#31a354")
+
+# 3. 绘制柱状图
+p <- ggplot(clu567.biv.crrs.counts, aes(x = period, y = counts, fill = period)) +
+  geom_col(width = 0.5) + # geom_col 用于画指定高度的柱子，width 控制柱子宽度
+  scale_fill_manual(values = my_colors) + # 自定义三个柱子的颜色
+  scale_y_continuous(expand = expansion(mult = c(0, 0.1))) + # 底部设为0（紧贴x轴），顶部留10%空间
+  labs(x = "", y = "Co-enriched CRRs counts") +
+  theme_classic(base_size = 16) + # 经典主题（包含 x 轴和 y 轴基线）
+  theme(legend.position = "none") # 隐藏图例（因为横轴已有标签）
+
+# 显示图形
+print(p)
+ggsave("outplots/fig4/sup4_a.clu567.period.crrs.counts.barplot.pdf", p, width = 5, height = 5, dpi = 300)
+
+# sup4_b 三个时间的co-enriched CRRs的继承关系
+
+l1 <- clu567.d0.bivalent[clu567.d0.bivalent$biv !=0,"peak"]
+l2 <- clu567.d7.bivalent[clu567.d7.bivalent$biv !=0,"peak"]
+l3 <- clu567.d15.bivalent[clu567.d15.bivalent$biv !=0,"peak"]
+
+library(ggplot2)
+library(dplyr)
+
+
+# ==========================================
+# 1. 集合运算（计算继承、丢失和新生数量）
+# ==========================================
+
+# --- Stage 1 (l1) ---
+s1_to_s2  <- intersect(l1, l2)        # l1 中保留到 l2 的
+s1_lost   <- setdiff(l1, l2)          # l1 中消失的
+
+# --- Stage 2 (l2) ---
+s2_from_s1     <- intersect(l2, l1)    # 来自 l1
+s2_from_s1_s3  <- intersect(s2_from_s1, l3) # 来自 l1 且继续流向 l3
+s2_from_s1_lost<- setdiff(s2_from_s1, l3)   # 来自 l1 但在 l2 消失
+
+s2_new         <- setdiff(l2, l1)     # l2 新生
+s2_new_s3      <- intersect(s2_new, l3)     # l2 新生且流向 l3
+s2_new_lost    <- setdiff(s2_new, l3)       # l2 新生且在 l2 消失
+
+# --- Stage 3 (l3) ---
+s3_from_s2_old <- intersect(l3, s2_from_s1) # 来自 l1->l2 的
+s3_from_s2_new <- intersect(l3, s2_new)     # 来自 l2新生的
+s3_new         <- setdiff(l3, l2)           # l3 新生
+
+# ==========================================
+# 2. 坐标与布局计算 (以 y = 0 作为顶端对齐线)
+# ==========================================
+max_count <- max(length(l1), length(l2), length(l3))
+GAP <- max_count * 0.08   # 新生块与继承块之间的间隔距离
+SUBGAP <- max_count * 0.02 # 同一块内部 (保留 vs 消失) 的细微间隔
+bw <- 0.2                  # 柱子半宽
+
+# --- L1 坐标 ---
+# 继承块 (Top = 0)
+y_l1_inh_top <- 0
+y_l1_inh_bot <- -length(s1_to_s2)
+# 消失块
+y_l1_lost_top <- y_l1_inh_bot - SUBGAP
+y_l1_lost_bot <- y_l1_lost_top - length(s1_lost)
+
+# --- L2 坐标 ---
+# 继承自 L1 的块 (Top = 0 对齐)
+y_l2_inh_s3_top <- 0
+y_l2_inh_s3_bot <- -length(s2_from_s1_s3)
+y_l2_inh_lost_top <- y_l2_inh_s3_bot - SUBGAP
+y_l2_inh_lost_bot <- y_l2_inh_lost_top - length(s2_from_s1_lost)
+
+# 新生块 (中间加 GAP 间隔)
+y_l2_new_s3_top <- y_l2_inh_lost_bot - GAP
+y_l2_new_s3_bot <- y_l2_new_s3_top - length(s2_new_s3)
+y_l2_new_lost_top <- y_l2_new_s3_bot - SUBGAP
+y_l2_new_lost_bot <- y_l2_new_lost_top - length(s2_new_lost)
+
+# --- L3 坐标 ---
+# 继承自 L1->L2 (Top = 0 对齐)
+y_l3_inh1_top <- 0
+y_l3_inh1_bot <- -length(s3_from_s2_old)
+
+# 继承自 L2新生的块 (加 GAP 间隔)
+y_l3_inh2_top <- y_l3_inh1_bot - GAP
+y_l3_inh2_bot <- y_l3_inh2_top - length(s3_from_s2_new)
+
+# L3 新生块 (再加 GAP 间隔)
+y_l3_new_top <- y_l3_inh2_bot - GAP
+y_l3_new_bot <- y_l3_new_top - length(s3_new)
+
+
+# ==========================================
+# 3. 构建矩形块 (Rectangles) 数据集
+# ==========================================
+rects <- data.frame(
+  x1 = c(
+    # Stage 1
+    1-bw, 1-bw,
+    # Stage 2
+    2-bw, 2-bw, 2-bw, 2-bw,
+    # Stage 3
+    3-bw, 3-bw, 3-bw
+  ),
+  x2 = c(
+    1+bw, 1+bw,
+    2+bw, 2+bw, 2+bw, 2+bw,
+    3+bw, 3+bw, 3+bw
+  ),
+  ymin = c(
+    y_l1_inh_bot, y_l1_lost_bot,
+    y_l2_inh_s3_bot, y_l2_inh_lost_bot, y_l2_new_s3_bot, y_l2_new_lost_bot,
+    y_l3_inh1_bot, y_l3_inh2_bot, y_l3_new_bot
+  ),
+  ymax = c(
+    y_l1_inh_top, y_l1_lost_top,
+    y_l2_inh_s3_top, y_l2_inh_lost_top, y_l2_new_s3_top, y_l2_new_lost_top,
+    y_l3_inh1_top, y_l3_inh2_top, y_l3_new_top
+  ),
+  type = c(
+    "Inherited Flow 1", "Lost/Terminated",
+    "Inherited Flow 1", "Lost/Terminated", "Inherited Flow 2", "Lost/Terminated",
+    "Inherited Flow 1", "Inherited Flow 2", "Newly Emerged"
+  ),
+  count = c(
+    length(s1_to_s2), length(s1_lost),
+    length(s2_from_s1_s3), length(s2_from_s1_lost), length(s2_new_s3), length(s2_new_lost),
+    length(s3_from_s2_old), length(s3_from_s2_new), length(s3_new)
+  )
+)
+
+# ==========================================
+# 4. 平滑流向带 (Sankey Ribbons) 辅助函数
+# ==========================================
+make_ribbon <- function(x1, x2, y1_top, y1_bot, y2_top, y2_bot, group_id, type) {
+  t <- seq(0, 1, length.out = 100)
+  s <- 3 * t^2 - 2 * t^3 # 平滑 S 型曲线
+  x <- x1 + (x2 - x1) * t
+  ytop <- y1_top + (y2_top - y1_top) * s
+  ybot <- y1_bot + (y2_bot - y1_bot) * s
+  
+  data.frame(
+    x = c(x, rev(x)),
+    y = c(ytop, rev(ybot)),
+    group = group_id,
+    type = type
+  )
+}
+
+# 生成 3 条主要的继承流向带
+ribbon1 <- make_ribbon(1+bw, 2-bw, y_l1_inh_top, y_l1_inh_bot, 0, y_l2_inh_lost_bot, 1, "Flow: L1 -> L2")
+ribbon2 <- make_ribbon(2+bw, 3-bw, y_l2_inh_s3_top, y_l2_inh_s3_bot, y_l3_inh1_top, y_l3_inh1_bot, 2, "Flow: L1 -> L2 -> L3")
+ribbon3 <- make_ribbon(2+bw, 3-bw, y_l2_new_s3_top, y_l2_new_s3_bot, y_l3_inh2_top, y_l3_inh2_bot, 3, "Flow: L2 -> L3")
+
+ribbons <- rbind(ribbon1, ribbon2, ribbon3)
+
+# ==========================================
+# 5. ggplot2 绘图
+# ==========================================
+
+# 颜色配色方案
+colors <- c(
+  "Inherited Flow 1" = "#2b5c8f", # L1 一路继承下来的颜色 (深蓝)
+  "Inherited Flow 2" = "#feb24c", # L2 新生并继承到 L3 的颜色 (黄/橙)
+  "Newly Emerged"    = "#31a354", # 最新产生的颜色 (绿)
+  "Lost/Terminated"  = "#d9d9d9"  # 没能继承下去的颜色 (浅灰)
+)
+
+p2 <- ggplot() +
+  # 1. 绘制连接带 (半透明流向)
+  geom_polygon(data = ribbons, aes(x = x, y = y, group = group, fill = type), alpha = 0.35) +
+  # 2. 绘制色块柱子
+  geom_rect(data = rects, aes(xmin = x1, xmax = x2, ymin = ymin, ymax = ymax, fill = type), color = "white", size = 0.3) +
+  # 3. 在柱子上标出样本数量（可选）
+  geom_text(data = dplyr::filter(rects, count > 0), 
+            aes(x = (x1 + x2)/2, y = (ymin + ymax)/2, label = count), 
+            color = "black", size = 6, fontface = "bold") +
+  # 4. 调整 Y 轴展示（因为代码里是负数对齐，显示时取绝对值转为正数）
+  scale_y_continuous(labels = abs, name = "Sample Counts") +
+  scale_x_continuous(breaks = c(1, 2, 3), labels = c("L1", "L2", "L3"), limits = c(0.5, 3.5)) +
+  scale_fill_manual(values = c(
+    colors,
+    "Flow: L1 -> L2"      = "#2b5c8f",
+    "Flow: L1 -> L2 -> L3"= "#2b5c8f",
+    "Flow: L2 -> L3"      = "#feb24c"
+  )) +
+  theme_classic(base_size = 16) +
+  theme(
+    axis.line.y = element_line(color = "black"),
+    axis.line.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    legend.title = element_blank(),
+    legend.position = "none"
+  ) +
+  labs(x = "Time Stages", title = "")
+
+ggsave("outplots/fig4/sup4_b.clu567.period.inherit.barplot.pdf", p2, width = 5, height = 5, dpi = 300)
+
+
+## sup4_c 真实记录三个时间点的H3K27ac信号/H3K27me3信号
+df_me3 <- clu567.mean.df %>% dplyr::filter(category == "H3K27me3")
+
+df_ac  <- clu567.mean.df %>% dplyr::filter(category == "H3K27ac")
+
+
+## 然后我们只统计独立的co-enriched CRRs
+# --- Stage 1 (l1) ---
+s1_lost
+
+# --- Stage 2 (l2) ---
+s2_new_lost
+
+# --- Stage 3 (l3) ---
+s3_new
+
+df1 <- rbind(df_me3[df_me3$peak %in% s1_lost,],df_ac[df_ac$peak %in% s1_lost,])
+df2 <- rbind(df_me3[df_me3$peak %in% s2_new_lost,],df_ac[df_ac$peak %in% s2_new_lost,])
+df3 <- rbind(df_me3[df_me3$peak %in% s3_new,],df_ac[df_ac$peak %in% s3_new,])
+
+library(ggplot2)
+library(dplyr)
+library(patchwork) # 用于拼图，如果没有请先运行 install.packages("patchwork")
+
+library(ggplot2)
+library(dplyr)
+library(patchwork)
+
+plot_epigenomic_signals <- function(df, 
+                                    error_type = "se", 
+                                    y_min_ac = 0.01, 
+                                    y_min_me3 = 0.2) {
+  
+  # 1. 确保 time 按照顺序排列 (d0 -> d7 -> d15)
+  df$time <- factor(df$time, levels = c("d0", "d7", "d15"))
+  
+  # 2. 计算每个 time 和 category 组合下的均值、SD 及 SE
+  df_summary <- df %>%
+    group_by(category, time) %>%
+    summarise(
+      mean_signal = mean(signal, na.rm = TRUE),
+      sd_signal   = sd(signal, na.rm = TRUE),
+      n           = n(),
+      se_signal   = sd_signal / sqrt(n),
+      .groups     = "drop"
+    )
+  
+  # 选择使用 SE 还是 SD
+  if (tolower(error_type) == "sd") {
+    df_summary$err <- df_summary$sd_signal
+  } else {
+    df_summary$err <- df_summary$se_signal
+  }
+  
+  # 3. 定义调色板
+  colors_ac  <- c("#fc9272", "#ef3b2c", "#a50f15") # H3K27ac 红色系渐变
+  colors_me3 <- c("#9ecae1", "#4292c6", "#08519c") # H3K27me3 蓝色系渐变
+
+  # ----------------------------------------------------
+  # 4. 绘制 H3K27ac 子图 (Y 轴从 y_min_ac 开始，默认 0.2)
+  # ----------------------------------------------------
+  df_ac <- df_summary %>% dplyr::filter(category == "H3K27ac")
+  # 自动计算 y 轴上限，防止柱子顶部和误差线超出图表范围
+  max_ac <- max(df_ac$mean_signal + df_ac$err, na.rm = TRUE)
+  y_max_ac <- max_ac + (max_ac - y_min_ac) * 0.15 
+
+  p_ac <- ggplot(df_ac, aes(x = time, y = mean_signal, fill = time)) +
+    geom_col(width = 0.55, color = "black", linewidth = 0.3) +
+    geom_errorbar(
+      aes(ymin = mean_signal - err, ymax = mean_signal + err),
+      width = 0.15, linewidth = 0.6
+    ) +
+    scale_fill_manual(values = colors_ac) +
+    scale_y_continuous(expand = c(0, 0)) + # 消除默认间隙
+    coord_cartesian(ylim = c(y_min_ac, y_max_ac)) + # 设置绝对 Y 轴范围 (起始于 y_min_ac)
+    labs(title = "H3K27ac", x = "Time", y = "Signal") +
+    theme_classic(base_size = 13) +
+    theme(
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+      legend.position = "none"
+    )
+
+  # ----------------------------------------------------
+  # 5. 绘制 H3K27me3 子图 (Y 轴从 y_min_me3 开始，默认 0.01)
+  # ----------------------------------------------------
+  df_me3 <- df_summary %>% dplyr::filter(category == "H3K27me3")
+  max_me3 <- max(df_me3$mean_signal + df_me3$err, na.rm = TRUE)
+  y_max_me3 <- max_me3 + (max_me3 - y_min_me3) * 0.15
+
+  p_me3 <- ggplot(df_me3, aes(x = time, y = mean_signal, fill = time)) +
+    geom_col(width = 0.55, color = "black", linewidth = 0.3) +
+    geom_errorbar(
+      aes(ymin = mean_signal - err, ymax = mean_signal + err),
+      width = 0.15, linewidth = 0.6
+    ) +
+    scale_fill_manual(values = colors_me3) +
+    scale_y_continuous(expand = c(0, 0)) + # 消除默认间隙
+    coord_cartesian(ylim = c(y_min_me3, y_max_me3)) + # 设置绝对 Y 轴范围 (起始于 y_min_me3)
+    labs(title = "H3K27me3", x = "Time", y = "Signal") +
+    theme_classic(base_size = 13) +
+    theme(
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+      legend.position = "none"
+    )
+
+  # 6. 拼图
+  combined_plot <- p_me3 + p_ac 
+  
+  return(combined_plot)
+}
+
+# 默认使用 SE (标准误) 作为误差线
+p1 <- plot_epigenomic_signals(df1)
+p2 <- plot_epigenomic_signals(df2)
+p3 <- plot_epigenomic_signals(df3)
+
+p <- p1 / p2 / p3
+
+ggsave("outplots/fig4/sup4_c.clu567.inherit.barplot.pdf", p, width = 6, height = 10, dpi = 300)
+
+
+# 如果想改用 SD (标准差) 作为误差线：
+p_sd <- plot_epigenomic_signals(df1, error_type = "sd")
+print(p_sd)
+
+```
+
+
+## sup4_d 四个四象限图挑出最符合认知的那个
+```{r}
+clu567.biv.d7.ac <- read.table(file = "/storage/main/projects/bigcgpu-prj/zhangtianpei/Project/chromHMM/DiffCluster/output/fig4.bivalent/clu567.d7.biv.bin.H3K27ac.CPM.tab")
+clu567.biv.d7.me3 <- read.table(file = "/storage/main/projects/bigcgpu-prj/zhangtianpei/Project/chromHMM/DiffCluster/output/fig4.bivalent/clu567.d7.biv.bin.H3K27me3.CPM.tab")
+
+
+clu567.biv.d7.delta <- data.frame(
+    ac_d0d7 = log2(clu567.biv.d7.ac[,5]/clu567.biv.d7.ac[,4]),
+    ac_d7d15 = log2(clu567.biv.d7.ac[,6]/clu567.biv.d7.ac[,5]),
+    me3_d0d7 = log2(clu567.biv.d7.me3[,5]/clu567.biv.d7.me3[,4]),
+    me3_d7d15 = log2(clu567.biv.d7.me3[,6]/clu567.biv.d7.me3[,5])
+)
+
+quadrant_data1 <- clu567.biv.d7.delta %>%
+  mutate(quadrant = case_when(
+    ac_d0d7 > 0 & me3_d0d7 < 0 ~ "ac Up / me3 Down",
+    ac_d0d7 > 0 & me3_d0d7 >= 0 ~ "ac Up / me3 Up",
+    ac_d0d7 <= 0 & me3_d0d7 < 0 ~ "ac Down / me3 Down",
+    ac_d0d7 <= 0 & me3_d0d7 >= 0 ~ "ac Down / me3 Up"
+  )) %>%
+  group_by(quadrant) %>%
+  summarise(count = n()) %>%
+  mutate(perc = paste0(round(count/sum(count)*100, 1), "%"))
+
+# 绘图：展示分布密度和象限比例
+p1 <- ggplot(clu567.biv.d7.delta, aes(x=ac_d0d7, y=me3_d0d7)) +
+  geom_bin2d(bins = 50) + # 使用热图形式展示点聚集
+  scale_fill_gradient(low = "lightblue", high = "red") +
+  geom_vline(xintercept = 0, linetype="dashed") +
+  geom_hline(yintercept = 0, linetype="dashed") +
+  # 在四个角标注百分比
+  annotate("text", x = -2, y = -2, label = paste0(quadrant_data1[1,3]), size=6, color="black", fontface="bold") +
+  annotate("text", x = -2, y = 2, label = paste0(quadrant_data1[2,3]), size=6, color="black", fontface="bold") +
+  annotate("text", x = 2, y = -2, label = paste0(quadrant_data1[3,3]), size=6, color="black", fontface="bold") +
+  annotate("text", x = 2, y = 2, label = paste0(quadrant_data1[4,3]), size=6, color="black", fontface="bold") +
+  labs(title="",
+       x="H3K27ac (d0-d7)", y="H3K27me3 (d7-d15)") +
+  theme_bw(base_size = 16)+
+  theme(
+    axis.text = element_text(color = "black",size = 16),
+    legend.position = "none"
+  )
+ggsave("outplots/fig4/sup4_d_1.Quadrant.Proportions.pdf",p1,width=5,height=5,dpi=300)
+
+
+quadrant_data2 <- clu567.biv.d7.delta %>%
+  mutate(quadrant = case_when(
+    ac_d0d7 > 0 & me3_d7d15 < 0 ~ "ac Up / me3 Down",
+    ac_d0d7 > 0 & me3_d7d15 >= 0 ~ "ac Up / me3 Up",
+    ac_d0d7 <= 0 & me3_d7d15 < 0 ~ "ac Down / me3 Down",
+    ac_d0d7 <= 0 & me3_d7d15 >= 0 ~ "ac Down / me3 Up"
+  )) %>%
+  group_by(quadrant) %>%
+  summarise(count = n()) %>%
+  mutate(perc = paste0(round(count/sum(count)*100, 1), "%"))
+
+# 绘图：展示分布密度和象限比例
+p2 <- ggplot(clu567.biv.d7.delta, aes(x=ac_d0d7, y=me3_d7d15)) +
+  geom_bin2d(bins = 50) + # 使用热图形式展示点聚集
+  scale_fill_gradient(low = "lightblue", high = "red") +
+  geom_vline(xintercept = 0, linetype="dashed") +
+  geom_hline(yintercept = 0, linetype="dashed") +
+  # 在四个角标注百分比
+  annotate("text", x = -2, y = -2, label = paste0(quadrant_data2[1,3]), size=6, color="black", fontface="bold") +
+  annotate("text", x = -2, y = 2, label = paste0(quadrant_data2[2,3]), size=6, color="black", fontface="bold") +
+  annotate("text", x = 2, y = -2, label = paste0(quadrant_data2[3,3]), size=6, color="black", fontface="bold") +
+  annotate("text", x = 2, y = 2, label = paste0(quadrant_data2[4,3]), size=6, color="black", fontface="bold") +
+  labs(title="",
+       x="H3K27ac (d0-d7)", y="H3K27me3 (d7-d15)") +
+  theme_bw(base_size = 16)+
+  theme(
+    axis.text = element_text(color = "black",size = 16),
+    legend.position = "none"
+  )
+ggsave("outplots/fig4/sup4_d_2.Quadrant.Proportions.pdf",p2,width=5,height=5,dpi=300)
+
+
+quadrant_data3 <- clu567.biv.d7.delta %>%
+  mutate(quadrant = case_when(
+    ac_d7d15 > 0 & me3_d0d7 < 0 ~ "ac Up / me3 Down",
+    ac_d7d15 > 0 & me3_d0d7 >= 0 ~ "ac Up / me3 Up",
+    ac_d7d15 <= 0 & me3_d0d7 < 0 ~ "ac Down / me3 Down",
+    ac_d7d15 <= 0 & me3_d0d7 >= 0 ~ "ac Down / me3 Up"
+  )) %>%
+  group_by(quadrant) %>%
+  summarise(count = n()) %>%
+  mutate(perc = paste0(round(count/sum(count)*100, 1), "%"))
+
+# 绘图：展示分布密度和象限比例
+p3 <- ggplot(clu567.biv.d7.delta, aes(x=ac_d7d15, y=me3_d0d7)) +
+  geom_bin2d(bins = 50) + # 使用热图形式展示点聚集
+  scale_fill_gradient(low = "lightblue", high = "red") +
+  geom_vline(xintercept = 0, linetype="dashed") +
+  geom_hline(yintercept = 0, linetype="dashed") +
+  # 在四个角标注百分比
+  annotate("text", x = -2, y = -2, label = paste0(quadrant_data3[1,3]), size=6, color="black", fontface="bold") +
+  annotate("text", x = -2, y = 2, label = paste0(quadrant_data3[2,3]), size=6, color="black", fontface="bold") +
+  annotate("text", x = 2, y = -2, label = paste0(quadrant_data3[3,3]), size=6, color="black", fontface="bold") +
+  annotate("text", x = 2, y = 2, label = paste0(quadrant_data3[4,3]), size=6, color="black", fontface="bold") +
+  labs(title="",
+       x="H3K27ac (d0-d7)", y="H3K27me3 (d7-d15)") +
+  theme_bw(base_size = 16)+
+  theme(
+    axis.text = element_text(color = "black",size = 16),
+    legend.position = "none"
+  )
+ggsave("outplots/fig4/sup4_d_3.Quadrant.Proportions.pdf",p3,width=5,height=5,dpi=300)
+
+
+quadrant_data4 <- clu567.biv.d7.delta %>%
+  mutate(quadrant = case_when(
+    ac_d7d15 > 0 & me3_d7d15 < 0 ~ "ac Up / me3 Down",
+    ac_d7d15 > 0 & me3_d7d15 >= 0 ~ "ac Up / me3 Up",
+    ac_d7d15 <= 0 & me3_d7d15 < 0 ~ "ac Down / me3 Down",
+    ac_d7d15 <= 0 & me3_d7d15 >= 0 ~ "ac Down / me3 Up"
+  )) %>%
+  group_by(quadrant) %>%
+  summarise(count = n()) %>%
+  mutate(perc = paste0(round(count/sum(count)*100, 1), "%"))
+
+# 绘图：展示分布密度和象限比例
+p4 <- ggplot(clu567.biv.d7.delta, aes(x=ac_d7d15, y=me3_d7d15)) +
+  geom_bin2d(bins = 50) + # 使用热图形式展示点聚集
+  scale_fill_gradient(low = "lightblue", high = "red") +
+  geom_vline(xintercept = 0, linetype="dashed") +
+  geom_hline(yintercept = 0, linetype="dashed") +
+  # 在四个角标注百分比
+  annotate("text", x = -2, y = -2, label = paste0(quadrant_data4[1,3]), size=6, color="black", fontface="bold") +
+  annotate("text", x = -2, y = 2, label = paste0(quadrant_data4[2,3]), size=6, color="black", fontface="bold") +
+  annotate("text", x = 2, y = -2, label = paste0(quadrant_data4[3,3]), size=6, color="black", fontface="bold") +
+  annotate("text", x = 2, y = 2, label = paste0(quadrant_data4[4,3]), size=6, color="black", fontface="bold") +
+  labs(title="",
+       x="H3K27ac (d0-d7)", y="H3K27me3 (d7-d15)") +
+  theme_bw(base_size = 16)+
+  theme(
+    axis.text = element_text(color = "black",size = 16),
+    legend.position = "none"
+  )
+ggsave("outplots/fig4/sup4_d_4.Quadrant.Proportions.pdf",p4,width=5,height=5,dpi=300)
+```
+
+# =========================================================
+## sup4.e 对二价修饰基因和普通基因表达和GO富集分析
+```{r}
+
+roi.proximal.tg <- read.table(file = "/storage/main/projects/bigcgpu-prj/zhangtianpei/Project/chromHMM/DiffCluster/output/roi_proximal.tg.tsv",header = T,sep = "\t")
+clu567.d7.bivalent$name <- sapply(strsplit(clu567.d7.bivalent$peak,"_",fixed = T),"[",2)
+l1 <- roi.proximal.tg[roi.proximal.tg$name %in% clu567.d7.bivalent[clu567.d7.bivalent$biv !=0,"name"],"target_gene_id"] %>% unique()
+l1 <- intersect(l1,tg.keeped)
+l2 <- roi.proximal.tg[roi.proximal.tg$name %in% clu567.d7.bivalent[clu567.d7.bivalent$biv ==0,"name"],"target_gene_id"] %>% unique()
+l2 <- intersect(l2,tg.keeped)
+
+
+
+l1.tpm <- log2(all.tpm[l1[!l1 %in% intersect(l1,l2)],]+1)
+l2.tpm <- log2(all.tpm[l2[!l2 %in% intersect(l1,l2)],]+1)
+
+l1.tpm <- log2(all.tpm[l1,]+1)
+l2.tpm <- log2(all.tpm[l2,]+1)
+
+boxplot(l1.tpm)
+boxplot(l2.tpm)
+
+t.test(l1.tpm$MSC,l1.tpm$ADI_7d,paired = T)
+t.test(l1.tpm$MSC,l1.tpm$ADI_15d,paired = T)
+
+t.test(l2.tpm$MSC,l2.tpm$ADI_7d,paired = T)
+t.test(l2.tpm$MSC,l2.tpm$ADI_15d,paired = T)
+
+
+isbiv.tpm.df <- data.frame(
+    time=factor(c(rep("d0",nrow(l1.tpm)),rep("d7",nrow(l1.tpm)),rep("d15",nrow(l1.tpm))),levels=c("d0","d7","d15")),
+    tpm=c(l1.tpm$MSC,l1.tpm$ADI_7d,l1.tpm$ADI_15d)
+)
+
+p <- ggplot(isbiv.tpm.df, aes(x = time, y = tpm, fill = time,color=time)) +
+stat_boxplot(geom = "errorbar",
+               width = 0.2,
+               #size = 1.0,
+               position = position_dodge(0.8)) +
+  geom_boxplot(outlier.shape = 21, outlier.size = 1, alpha = 1) +
+  scale_fill_manual(values = c("#dba880","#dba880","#dba880")) +
+  scale_color_manual(values = c("black","black","black")) +
+  labs(title = "", x = "", y = "log2(TPM+1)") +
+  theme_classic(base_size = 16) +
+  theme(legend.position = "up", # 在下方显示图例
+        legend.direction = "horizontal",
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+        axis.text = element_text(color = "black"),
+        panel.grid.major.x = element_blank())
+
+ggsave("outplots/fig4/fig4_g.isbiv.boxplot.pdf",p,width=7,height=7,dpi=300)
+
+nobiv.tpm.df <- data.frame(
+    time=factor(c(rep("d0",nrow(l2.tpm)),rep("d7",nrow(l2.tpm)),rep("d15",nrow(l2.tpm))),levels=c("d0","d7","d15")),
+    tpm=c(l2.tpm$MSC,l2.tpm$ADI_7d,l2.tpm$ADI_15d)
+)
+
+p <- ggplot(nobiv.tpm.df, aes(x = time, y = tpm, fill = time,color=time)) +
+stat_boxplot(geom = "errorbar",
+               width = 0.2,
+               #size = 1.0,
+               position = position_dodge(0.8)) +
+  geom_boxplot(outlier.shape = 21, outlier.size = 1, alpha = 1) +
+  scale_fill_manual(values = c("#94d2ef","#94d2ef","#94d2ef")) +
+  scale_color_manual(values = c("black","black","black")) +
+  labs(title = "", x = "", y = "log2(TPM+1)") +
+  theme_classic(base_size = 16) +
+  theme(legend.position = "up", # 在下方显示图例
+        legend.direction = "horizontal",
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+        axis.text = element_text(color = "black"),
+        panel.grid.major.x = element_blank())
+
+ggsave("outplots/fig4/fig4_g.nobiv.boxplot.pdf",p,width=7,height=7,dpi=300)
+
+
+
+clu5.isbiv.go <- clusterProfiler::enrichGO(
+      gene = ref[ref$gene_id %in% intersect(setdiff(l1,l2),tg.keeped),"gene_name"],
+      universe = ref[ref$gene_id %in% tg.keeped,"gene_name"],
+      OrgDb = org.Hs.eg.db::org.Hs.eg.db,
+      keyType = "SYMBOL",
+      ont = "BP",
+      pAdjustMethod = "BH",
+      pvalueCutoff = 0.1,
+      qvalueCutoff = 0.1,
+      #minGSSize = 10,
+      #maxGSSize = 500,
+      readable = TRUE
+    ) %>% as.data.frame()
+
+clu5.nobiv.go <- clusterProfiler::enrichGO(
+      gene = ref[ref$gene_id %in% intersect(setdiff(l2,l1),tg.keeped),"gene_name"],
+      universe = ref[ref$gene_id %in% tg.keeped,"gene_name"],
+      OrgDb = org.Hs.eg.db::org.Hs.eg.db,
+      keyType = "SYMBOL",
+      ont = "BP",
+      pAdjustMethod = "BH",
+      pvalueCutoff = 0.1,
+      qvalueCutoff = 0.1,
+      #minGSSize = 15,
+      #maxGSSize = 300,
+      readable = TRUE
+) %>% as.data.frame()
+
+
+
+## 紧接着需要画对应的富集图
+is.biv.go <- read.table(file = "output/fig4.bivalent/isbiv.vs.nobiv.GO.output.tsv",header = T,sep = "\t")
+
+
+# 2. 数据处理
+# 计算 -log10(FDR) 作为高度指标 (富集图标准做法：FDR越小，柱子越长)
+# 如果只想画原始 FDR 数值，请将 next_line 中的 -log10(FDR) 改为 -FDR
+df <- is.biv.go %>%
+  mutate(
+    FDR = -log10(FDR), # 显著性得分
+    category = factor(category, levels = c("isbiv", "nobiv")) # 确保顺序
+  ) %>%
+  # 在每个组内按 FDR 从小到大排序 (即 score 从大到小)，这样绘图时最显著的在最上面
+  arrange(category, FDR) %>%
+  mutate(GO = str_wrap(GO, width = 30))  %>%
+  mutate(GO = factor(GO, levels = rev(unique(GO))))
+
+
+p <- ggplot(df, aes(y = FDR, x = GO, fill = category)) +
+  geom_bar(stat="identity")+coord_flip() +
+  scale_fill_manual(values = c("#dba880","#94d2ef")) +
+  scale_color_manual(values = c("black","black","black")) +
+  labs(title = "", x = "", y = "") +
+  theme_classic(base_size = 16) +
+  theme(legend.position = "up", # 在下方显示图例
+        legend.direction = "horizontal",
+        plot.title = element_text(hjust = 0.5, face = "bold"),
+        axis.text.y = element_text(color = "black",size = 28),
+
+        panel.grid.major.x = element_blank())
+
+ggsave("outplots/fig4/fig4_g.go.pdf",p,width=10,height=12,dpi=300)
+```
+
+

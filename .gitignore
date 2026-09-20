@@ -1,27 +1,26 @@
 # ============================================================
-# Raw input data. The files in input/ are large and are NOT
-# version-controlled. See input/README.md for their format,
-# provenance and how to regenerate them.
+# Input data (large; obtained from GEO GSE346087)
 # ============================================================
-input/*
-!input/README.md
+pipeline/input/*
+!pipeline/input/README.md
 
 # ============================================================
-# Intermediate R workspaces and final outputs
+# Intermediate objects and deliverables
 # ============================================================
-work/
-output/
+pipeline/work/
+pipeline/output/
 
 # ============================================================
-# Original (Chinese-commented) analysis scripts, archived here
-# for reference only. They are intentionally not published.
+# Original (Chinese-commented) analysis scripts, archived for
+# reference only. Intentionally not published.
 # ============================================================
-_original_zh/
+pipeline/_original_zh/
 
 # ============================================================
-# R and editor cruft
+# Local artefacts
 # ============================================================
-.Rhistory
+figures/*.bak
+R/.Rhistory
 .RData
 .Rproj.user/
 *.Rproj

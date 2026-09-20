@@ -1,0 +1,1097 @@
+
+<!--
+Reproduces main Figure 3 (final version): CRR-target-gene vs control enrichment dotplots by genomic annotation, gene-fate proportions and target-gene TPM panels. Inputs (examples): output/roi_proximal.tg.v2.targets.tsv, output/clusters/controls/*, output/WebGestaltR/*. Outputs: outplots/fig3*.pdf.
+--> 
+fig3.plots
+
+# =====================================================
+## fig3_a 与control相比，在靶基因对应各区域的富集水平
+```{r}
+
+roi_proximal.tg <- read.table(file = "output/roi_proximal.tg.v2.targets.tsv",header= T,sep = "\t")
+
+
+loc.annot.class <- c("promoter","exon","intron","distal_regulatory")
+all.loc.annot.df <- data.frame()
+
+for (i in 1:7){
+    input <- roi_info.split[roi_info.split$cluster == i,]
+    #input$name <- paste0(input$chr,":",input$start,":",input$end)
+    input.tg <- roi_proximal.tg[roi_proximal.tg$name %in% input$peak,]
+    input.bg.tg <- read.table(file = paste0("output/clusters/controls/cluster",i,".bg.tg.targets.tsv"),header = T,sep = "\t")
+    output <- data.frame()
+    for (j in 1:length(loc.annot.class)){
+        a1=input.tg[input.tg$final_type == loc.annot.class[j],] %>% nrow()
+        a2=nrow(input.tg) - a1
+        b1=input.bg.tg[input.bg.tg$final_type == loc.annot.class[j],] %>% nrow()
+        b2=nrow(input.bg.tg) - b1
+        result <- fisher.test(matrix(c(a1,a2,b1,b2),nrow=2,ncol=2))
+        out <- data.frame(cluster = paste0('cluster',i),annot = loc.annot.class[j],OR = result$estimate,upper = result$conf.int[2],lower = result$conf.int[1],pval=result$p.value)
+        output <-rbind(output,out)
+    }
+    all.loc.annot.df <- rbind(all.loc.annot.df, output)
+
+}
+
+
+# 加载必要的库
+library(ggplot2)
+library(dplyr)
+
+# 1. 准备数据 (假设你的 dataframe 叫 all.loc.annot.df)
+# 为了演示，如果数据还没转换成数值型，先确保转换
+df <- all.loc.annot.df
+df$pval <- ifelse(df$pval < 2.2e-16,2.2e-16,df$pval)
+
+# 转换 OR 为 Beta (log e)
+df$beta <- log(df$OR)
+
+# 处理显著性大小：
+# 设定阈值（例如 p < 0.05）。
+# 如果不显著，设为一个固定小值；如果显著，根据 -log10(p) 映射到一个较大的范围。
+df <- df %>%
+  mutate(
+    is_sig = ifelse(pval < 0.05, "Significant", "Not Significant"),
+    log_p = -log10(pval),
+    # 创建一个用于绘图的大小变量：
+    # 不显著的点统一给一个很小的值（例如 1），显著的点从 4 开始往上加
+    plot_size = ifelse(pval >= 0.05, 1, 4 + (log_p / max(log_p) * 6))
+  )
+
+df <- df[df$annot != "intergenic_far",]
+# 2. 因子排序（保持逻辑顺序）
+df$cluster <- factor(df$cluster, levels = rev(unique(df$cluster)))
+df$annot <- factor(df$annot, levels = c("promoter", "exon", "intron", "distal_regulatory"))
+
+# 3. 绘图
+p <- ggplot(df, aes(x = annot, y = cluster)) +
+  # 绘制背景网格线（可选，增加引导感）
+  geom_point(aes(size = plot_size, color = beta)) +
+  
+  # 颜色设置：使用 gradient2 并在 0 附近设置极窄的过渡
+  # 这样哪怕是 0.001 也会立刻带上颜色倾向
+  scale_color_gradient2(
+    low = "#377EB8",      # 蓝色 (Diluted)
+    mid = "white",        # 0 为白色
+    high = "#E41A1C",     # 红色 (Enriched)
+    midpoint = 0,
+    name = expression(beta == log(OR)) # Legend 标题显示公式
+  ) +
+  
+  # 大小设置：取消连续映射，直接使用计算好的 plot_size
+  scale_size_identity(
+    guide = "legend", 
+    name = "Significance",
+    breaks = c(1, 3, 5),
+    labels = c("p >= 0.05", "p < 0.01", "p < 1e-10") # 这里的 label 需根据实际数据调整
+  ) +
+  
+  theme_bw(base_size = 16) +
+  labs(
+    x = "Target-relative position",
+    y = ""
+  ) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1 ,color = "black"),
+    axis.text.y = element_text(color = "black"),
+    panel.grid.minor = element_blank()
+  )
+
+ggsave("outplots/fig3/fig3_a.loc.tg.annot.dotplot.pdf",p,width=6,height=8,dpi=300)
+
+
+```
+
+
+# =====================================================
+## fig3_b 各cluster靶基因数量分布图
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+roi.proximal.tg <- roi_proximal.tg[,c(1,2,3,4,6,7,8)]
+roi.proximal.tg$cluster <- roi_info.split[match(roi.proximal.tg$name,roi_info.split$peak),"cluster"]
+colnames(roi.proximal.tg) <- c("chr","start","end","peak","id","type","distance","cluster")
+
+
+library(tximport)
+library(DESeq2)
+
+period <- c("MSC","ADI-7d","ADI-14d")
+sample_list <- c("MSC_rep1","MSC_rep2","MSC_rep3","ADI-7d_rep1","ADI-7d_rep2","ADI-7d_rep3","ADI-14d_rep1","ADI-14d_rep2","ADI-14d_rep3")
+
+# 定义存在表达的基因
+tg.keeped <- setdiff(ref$gene_id,rownames(all.tpm[all.tpm$MSC < 1 & all.tpm$ADI_7d < 1 & all.tpm$ADI_15d < 1,]))
+
+files <- paste0('~/Project/19-NG/RNA-seq/out/',sample_list,'.genes.results')
+txi <- tximport(files, type="rsem")
+
+# 把非正长度处理掉（0/NA/负数）
+txi$length[!is.finite(txi$length) | txi$length <= 0] <- 1
+sampleTable <- data.frame(
+  row.names = names(files),
+  condition = c("MSC","MSC","MSC","ADI-7d","ADI-7d","ADI-7d","ADI-14d","ADI-14d","ADI-14d")
+)
+sampleTable$condition <- factor(sampleTable$condition)
+
+log2FC_cutoff <- 0.5
+padj_cutoff   <- 0.05
+
+dds <- DESeqDataSetFromTximport(txi, sampleTable, ~ condition)
+dds <- DESeq(dds)
+res <- results(dds)
+res <- results(dds,contrast = c("condition", "ADI-14d","MSC")) %>% as.data.frame %>% na.omit()
+
+res1 <- results(dds,contrast = c("condition", "ADI-7d","MSC")) %>% as.data.frame %>% na.omit()
+res2 <- results(dds,contrast = c("condition", "ADI-14d","ADI-7d")) %>% as.data.frame %>% na.omit()
+
+res1 <- res1[rownames(res1) %in% tg.keeped,]
+res1$change <- "N.S"
+res1$change[res1$log2FoldChange >=  log2FC_cutoff & res1$padj < padj_cutoff] <- "Up"
+res1$change[res1$log2FoldChange <= -log2FC_cutoff & res1$padj < padj_cutoff] <- "Down"
+
+res2 <- res2[tg.keeped,]
+res2$change <- "N.S"
+res2$change[res2$log2FoldChange >=  log2FC_cutoff & res2$padj < padj_cutoff] <- "Up"
+res2$change[res2$log2FoldChange <= -log2FC_cutoff & res2$padj < padj_cutoff] <- "Down"
+
+
+all.clusters.tg.res.annot <- data.frame()
+for (i in 1:7){
+    input <- roi.proximal.tg[roi.proximal.tg$cluster == i,]
+    input.res1 <- res1[rownames(res1) %in% input$id,]
+    input.res2 <- res2[rownames(res2) %in% input$id,]
+    out1 <- c(table(input.res1$change)[1],table(input.res1$change)[2],table(input.res1$change)[3],length(unique(input$id))-length(intersect(input$id,tg.keeped)))/length(unique(input$id))
+    out2 <- c(table(input.res2$change)[1],table(input.res2$change)[2],table(input.res2$change)[3],length(unique(input$id))-length(intersect(input$id,tg.keeped)))/length(unique(input$id))
+    output <- data.frame(
+        cluster = paste0('cluster',i),
+        category= c("d7-d0","d14-d7"),
+        repressed = c(out1[1],out2[1]),
+        unchanged = c(out1[2],out2[2]),
+        induced = c(out1[3],out2[3]),
+        silent = c(out1[4],out2[4])
+    )
+    all.clusters.tg.res.annot <- rbind(all.clusters.tg.res.annot,output)
+}
+
+
+# 2. 数据清洗与因子排序
+plot_data <- all.clusters.tg.res.annot %>%
+  pivot_longer(cols = c(repressed, unchanged, induced, silent), 
+               names_to = "fate", values_to = "proportion")
+
+# 设定 Fate 的顺序 (从左到右：Induced -> Unchanged -> Repressed -> Silent)
+plot_data$fate <- factor(plot_data$fate, 
+                         levels = rev(c("induced", "repressed", "unchanged", "silent")))
+
+# 设定 Cluster 顺序 (确保图中从上到下是 1-7)
+plot_data$cluster <- factor(plot_data$cluster, 
+                            levels = rev(paste0("cluster", 1:7)))
+
+# 设定 Category 顺序
+plot_data$category <- factor(plot_data$category, levels = c("d7-d0", "d14-d7"))
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(scales)
+# 3. 绘图
+p <- ggplot(plot_data, aes(x = cluster, y = proportion, fill = fate)) +
+  # 绘制条形图，添加白色细边框增加精致感
+  geom_bar(stat = "identity", position = "stack", width = 0.7, color = "white", linewidth = 0.2) +
+  # 坐标轴翻转
+  coord_flip() +
+  # 分面：上下排列，不共享 Y 轴刻度（为了保持独立感）
+  facet_grid(category ~ ., scales = "free_y", space = "free_y") +
+  # 配色方案
+  scale_fill_manual(values = c(
+    "induced"   = "#E64B35FF", # 珊瑚红 (NPG)
+    "unchanged" = "#F0F0F0",   # 极浅灰
+    "repressed" = "#4DBBD5FF", # 灰蓝 (NPG)
+    "silent"    = "#3C3C3CFF"  # 深炭灰
+  )) +
+  # 格式化 Y 轴为百分比
+  scale_y_continuous(labels = percent_format(), expand = c(0, 0)) +
+  # 主题美化
+  theme_minimal(base_size = 16) +
+  theme(
+    # 移除背景网格
+    panel.grid = element_blank(),
+    # 分面标签美化
+    strip.background = element_rect(fill = "gray95", color = NA),
+    strip.text = element_text(face = "bold"),
+    # 坐标轴文字
+    axis.text = element_text(color = "black"),
+    axis.title = element_blank(),
+    # 图例位置
+    legend.position = "right",
+    legend.title = element_blank(),
+    # 增加面板之间的间距
+    panel.spacing = unit(1, "lines"),
+    plot.margin = margin(10, 20, 10, 10)
+  )
+
+# 4. 输出
+print(p)
+ggsave("outplots/fig3/fig3_b.Gene_Fate_Proportion.pdf", p, width = 7, height = 8,dpi=300)
+
+```
+
+
+# =====================================================
+## fig3_c 各cluster靶基因表达箱线图
+```{r}
+tg.keeped <- all.tpm[all.tpm$MSC >=1 | all.tpm$ADI_7d >=1 | all.tpm$ADI_15d >=1,] %>% row.names()
+tg.keeped <- intersect(tg.keeped,ref$gene_id)
+
+all.tpm.df <- data.frame()
+for (i in 1:7){
+    input <- roi.proximal.tg[roi.proximal.tg$cluster == i,"id"]
+    input <- intersect(input,tg.keeped)
+    out <- log2(all.tpm[input,]+1)
+    output <- data.frame(
+        cluster=rep(paste0('cluster',i),3*nrow(out)),
+        category=c(rep('MSC',nrow(out)),rep('ADI-7d',nrow(out)),rep('ADI-15d',nrow(out))),
+        tpm=c(out$MSC,out$ADI_7d,out$ADI_15d)
+    )
+    print(c(
+        t.test(out$MSC,out$ADI_7d,paired = T)$p.value,
+        t.test(out$MSC,out$ADI_15d,paired = T)$p.value,
+        t.test(out$ADI_7d,out$ADI_15d,paired = T)$p.value
+    ))
+    all.tpm.df <- rbind(all.tpm.df,output)
+}
+
+data <- all.tpm.df
+data$category <- factor(data$category,c("MSC","ADI-7d","ADI-15d"))
+data$cluster <- factor(data$cluster,paste0('cluster',1:7))
+
+data$row_group <- ifelse(data$cluster %in% c("cluster1", "cluster2", "cluster3", "cluster4"), "Group A", "Group B")
+
+# 如果你的 cluster 是数字 1-7，则用：
+# data$row_group <- ifelse(data$cluster <= 4, "Group A", "Group B")
+
+# 2. 绘图
+p <- ggplot(data, aes(x = cluster, y = tpm, fill = category)) +
+  stat_boxplot(geom = "errorbar",
+               width=0.4,
+               position = position_dodge(0.8)) +
+  geom_boxplot(position = position_dodge(width = 0.8),
+               outlier.shape = NA) +  
+  scale_fill_manual(values = c("#4b92c3", "#56b356" , "#de5253")) + 
+  coord_cartesian(ylim = c(min(data$tpm)+0.5, max(data$tpm))) +
+  labs(y = "log(Target Gene TPM +1)", x = " ", fill = "Class") +
+  theme_bw(base_size = 16) +
+  
+  # --- 关键修改部分：分面 ---
+  facet_wrap(~row_group, ncol = 1, scales = "free_x") + 
+  
+  theme(
+    axis.text.x = element_text(colour = "black"),  
+    axis.text.y = element_text(colour = "black"),  
+    axis.title.y = element_text(face = "bold"),   
+    legend.position = "right",
+    panel.grid.major = element_blank(), 
+    panel.grid.minor = element_blank(), 
+    panel.border = element_rect(color = "black"),
+    
+    # 隐藏分面标签的背景和文字（如果你不想看到 "Group A" "Group B" 的横条）
+    strip.background = element_blank(),
+    strip.text = element_blank()
+  )
+
+# 保存图片（注意：分面后高度可能需要增加，建议 height 调大一点，比如 7 或 8）
+ggsave(p, file = "outplots/fig3/fig3_d.all.clu.tg.tpm.pdf", width = 8, height = 8, dpi = 300)
+
+```
+
+
+
+
+# ============================================================
+## fig3_e 上调和下调基因的GO富集情况
+```{r}
+
+## 提取关键通路画两个点图
+
+all.up.dotplot.input <- read.table(file = "output/WebGestaltR/all.go.up.dotplot.input.txt",header = T,sep = "\t")
+
+all.up.dotplot.input[,3:9] <- lapply(all.up.dotplot.input[,3:9], as.numeric)
+
+all.up.dotplot.input[,3:9] <- lapply(all.up.dotplot.input[,3:9], function(x) {
+  res <- x
+  # 明确排除 NA，并满足 0 < x <= 1
+  idx <- !is.na(x) & (x > 0) & (x <= 1)
+  res[idx] <- -log10(x[idx])
+  res[is.na(res)] <- 0
+  res
+})
+
+all.up.dotplot.input$category <- factor(
+  all.up.dotplot.input$category,
+  levels = c("GO", "Pathway")
+)
+
+library(tidyr)
+library(dplyr)
+library(forcats)
+library(ggplot2)
+
+
+## 1. 宽表转长表 ---------------------------------------------------------
+df_long <- all.up.dotplot.input %>%
+  pivot_longer(
+    cols = starts_with("cluster"),
+    names_to = "cluster",
+    values_to = "log10FDR"   # 你的数值列是 -log10(FDR)
+  ) %>%
+  mutate(
+    cluster = factor(cluster,
+                     levels = paste0("cluster", 1:7),
+                     labels = 1:7)
+  )
+
+## 2. 设定显著/不显著，并排序通路 --------------------------------------
+sig_cutoff <- 1.3   # 例如 -log10(0.05)，可以按需要修改
+
+df_long <- df_long %>%
+  mutate(
+    sig = ifelse(log10FDR >= sig_cutoff, "significant", "nonsig")
+  ) %>%
+  # 计算每个 term 在各自 category 内的最大显著性，用于排序
+  group_by(name, category) %>%
+  mutate(max_log10FDR = max(log10FDR, na.rm = TRUE)) %>%
+  ungroup() %>%
+  arrange(category, max_log10FDR) %>%
+  mutate(name = fct_inorder(name))
+
+## 3. 画 dotplot：所有格子都有点 ---------------------------------------
+p <- ggplot(df_long,
+            aes(x = cluster, y = name)) +
+  # 先画背景：所有点（灰色，小）
+  geom_point(
+    data = ~ .x,               # 所有数据
+    color = "grey85",
+    size  = 1.5                 # 背景点大小固定
+  ) +
+  # 再画显著点：有颜色、随 log10FDR 变大
+  geom_point(
+    data = ~ dplyr::filter(.x, sig == "significant"),
+    aes(size = log10FDR, color = log10FDR)
+  ) +
+  scale_size_continuous(
+    name  = expression(-log[10](FDR)),
+    range = c(3, 6)             # 显著点大小范围
+  ) +
+  scale_color_gradient(
+    name  = expression(-log[10](FDR)),
+    low   = "#f5abb7",
+    high  = "#cb364a"
+  ) +
+  facet_grid(category ~ ., scales = "free_y", space = "free_y") +
+  theme_bw(base_size = 12) +
+  theme(
+    strip.background = element_blank(),
+    strip.text.y     = element_text(angle = 0, hjust = 0, face = "bold"),
+    axis.text.x      = element_text(angle = 45, hjust = 1, face = "bold"),
+    axis.title.y     = element_blank(),
+    legend.position="top",
+    panel.spacing.y  = unit(0.6, "lines")
+  ) +
+  xlab("Cluster")
+
+
+ggsave(p, file = "outplots/fig3/fig3_e.up.tg.GO.dotplots.pdf", width = 8, height = 8, dpi = 300)
+
+
+all.down.dotplot.input <- read.table(file = "output/WebGestaltR/all.go.down.dotplot.input.txt",header = T,sep = "\t")
+all.down.dotplot.input[,3:9] <- lapply(all.down.dotplot.input[,3:9], as.numeric)
+
+all.down.dotplot.input[,3:9] <- lapply(all.down.dotplot.input[,3:9], function(x) {
+  res <- x
+  # 明确排除 NA，并满足 0 < x <= 1
+  idx <- !is.na(x) & (x > 0) & (x <= 1)
+  res[idx] <- -log10(x[idx])
+  res[is.na(res)] <- 0
+  res
+})
+
+all.down.dotplot.input$category <- factor(
+  all.down.dotplot.input$category,
+  levels = c("GO", "Pathway")
+)
+
+library(tidyr)
+library(dplyr)
+library(forcats)
+library(ggplot2)
+
+
+## 1. 宽表转长表 ---------------------------------------------------------
+df_long <- all.down.dotplot.input %>%
+  pivot_longer(
+    cols = starts_with("cluster"),
+    names_to = "cluster",
+    values_to = "log10FDR"   # 你的数值列是 -log10(FDR)
+  ) %>%
+  mutate(
+    cluster = factor(cluster,
+                     levels = paste0("cluster", 1:7),
+                     labels = 1:7)
+  )
+
+## 2. 设定显著/不显著，并排序通路 --------------------------------------
+sig_cutoff <- 1.3   # 例如 -log10(0.05)，可以按需要修改
+
+df_long <- df_long %>%
+  mutate(
+    sig = ifelse(log10FDR >= sig_cutoff, "significant", "nonsig")
+  ) %>%
+  # 计算每个 term 在各自 category 内的最大显著性，用于排序
+  group_by(name, category) %>%
+  mutate(max_log10FDR = max(log10FDR, na.rm = TRUE)) %>%
+  ungroup() %>%
+  arrange(category, max_log10FDR) %>%
+  mutate(name = fct_inorder(name))
+
+## 3. 画 dotplot：所有格子都有点 ---------------------------------------
+p <- ggplot(df_long,
+            aes(x = cluster, y = name)) +
+  # 先画背景：所有点（灰色，小）
+  geom_point(
+    data = ~ .x,               # 所有数据
+    color = "grey85",
+    size  = 1.5                 # 背景点大小固定
+  ) +
+  # 再画显著点：有颜色、随 log10FDR 变大
+  geom_point(
+    data = ~ dplyr::filter(.x, sig == "significant"),
+    aes(size = log10FDR, color = log10FDR)
+  ) +
+  scale_size_continuous(
+    name  = expression(-log[10](FDR)),
+    range = c(3, 6)             # 显著点大小范围
+  ) +
+  scale_color_gradient(
+    name  = expression(-log[10](FDR)),
+    low   = "#94d2ef",
+    high  = "#3e68a0"
+  ) +
+  facet_grid(category ~ ., scales = "free_y", space = "free_y") +
+  theme_bw(base_size = 12) +
+  theme(
+    strip.background = element_blank(),
+    strip.text.y     = element_text(angle = 0, hjust = 0, face = "bold"),
+    axis.text.x      = element_text(angle = 45, hjust = 1, face = "bold"),
+    axis.title.y     = element_blank(),
+    legend.position="top",
+    panel.spacing.y  = unit(0.6, "lines")
+  ) +
+  xlab("Cluster")
+
+
+ggsave(p, file = "outplots/fig3/fig3_e.down.tg.GO.dotplots.pdf", width = 8, height = 8, dpi = 300)
+```
+
+
+## sup3_a ChIPseeker作基因组区域注释
+```{r}
+
+for (i in 1:7){
+    output <- roi_info.split[roi_info.split$cluster == i,]
+    output$chr <- sapply(strsplit(as.character(output$chr),"chr",fixed = T),"[",2)
+    write.table(output,file = paste0("output/clusters/CRRs/Ensdb.cluster",i,'.bed'),row.names = F,col.names = F,sep = "\t",quote = F)
+}
+
+
+library(ChIPseeker)
+library(EnsDb.Hsapiens.v75)
+#library(org.Hs.eg.db)
+
+peaklist <- list(
+    Cluster1="output/clusters/CRRs/Ensdb.cluster1.bed",
+    Cluster2="output/clusters/CRRs/Ensdb.cluster2.bed",
+    Cluster3="output/clusters/CRRs/Ensdb.cluster3.bed",
+    Cluster4="output/clusters/CRRs/Ensdb.cluster4.bed",
+    Cluster5="output/clusters/CRRs/Ensdb.cluster5.bed",
+    Cluster6="output/clusters/CRRs/Ensdb.cluster6.bed",
+    Cluster7="output/clusters/CRRs/Ensdb.cluster7.bed")
+peakAnnoList <- lapply(peaklist, annotatePeak, TxDb=EnsDb.Hsapiens.v75,
+                       tssRegion=c(-2000, 2000), verbose=FALSE)
+p <- plotAnnoBar(peakAnnoList,cex.axis =5)
+ggsave(file = "outplots/fig3/sup3_a.genome.location.annot.pdf",width=10,height=8,dpi=300)
+
+
+```
+
+
+# =====================================================
+## sup3_b 各clusters与其靶基因的距离的山脊图
+```{r}
+
+clu.distance.list <- list()
+for (i in 1:7){
+    clu.tg <- roi_proximal.tg[roi_proximal.tg$name %in% roi_info.split[roi_info.split$cluster == i,"peak"],]
+    clu.tg <- clu.tg[clu.tg$final_type != "intergenic_far",]
+    hist(log10(clu.tg$final_distance+1))
+    clu.distance.list[[i]] <- sqrt(clu.tg$final_distance)
+}
+
+library(data.table)
+library(ggplot2)
+
+## 1. 把 list 转成长表
+plot.df <- rbindlist(lapply(seq_along(clu.distance.list), function(i){
+    data.table(
+        cluster = paste0("cluster", i),
+        log_distance = clu.distance.list[[i]]
+    )
+}))
+
+## 2. 设定顺序：从上到下 cluster1 ~ cluster7
+plot.df$cluster <- factor(plot.df$cluster, levels = paste0("cluster", 1:7))
+
+## 3. 计算每个 cluster 的样本量，可选
+n.df <- plot.df[, .(n = .N), by = cluster]
+n.df[, cluster_lab := paste0(cluster, "  (n=", n, ")")]
+
+plot.df <- merge(plot.df, n.df[, .(cluster, cluster_lab)], by = "cluster", all.x = TRUE)
+plot.df$cluster_lab <- factor(plot.df$cluster_lab, levels = n.df$cluster_lab[match(paste0("cluster", 1:7), n.df$cluster)])
+
+## 4. 先计算统一的y轴上限，保证所有panel一致
+dens_list <- lapply(split(plot.df$log_distance, plot.df$cluster), density)
+ymax <- max(sapply(dens_list, function(x) max(x$y))) * 1.05
+
+
+my_colors <- c(
+  "cluster1" = "#2ca02c", # 经典学术绿
+  "cluster2" = "#1b7837", # 深绿       
+  "cluster3" = "#3182bd", # 标准蓝    
+  "cluster4" = "#08519c", # 深蓝      
+  "cluster5" = "#b10026", # 科学红     
+  "cluster6" = "#feb24c", # 柔和橙黄  
+  "cluster7" = "#f768a1"  # 玫瑰粉红   
+)
+
+## 5. 作图
+p <- ggplot(plot.df, aes(x = log_distance, color = cluster,fill = cluster)) +
+    geom_density(alpha = 0.3, linewidth = 0.8) +
+    facet_wrap(~ cluster_lab, ncol = 1, scales = "fixed", strip.position = "left") +
+    scale_color_manual(values = my_colors) +
+    scale_fill_manual(values = my_colors) +
+    scale_x_continuous(
+        breaks = sqrt(c(0, 100, 1000, 10000, 50000, 100000, 200000)),
+        labels = c("0", "100 bp", "1 kb", "10 kb", "50 kb", "100 kb", "200 kb"),
+        expand = c(0, 0)
+    ) +
+    coord_cartesian(xlim = c(0, sqrt(200000)), ylim = c(0, ymax)) +
+    labs(
+        x = "Distance from ROI center to target gene TSS",
+        y = "Density"
+    ) +
+    theme_bw(base_size = 16) +
+    theme(
+        panel.border = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_blank(),
+        strip.placement = "outside",
+        strip.text.y.left = element_text(angle = 0, hjust = 1, size = 16, face = "bold"),
+        axis.text = element_text(size = 16, color = "black"),
+        panel.spacing = unit(0.15, "lines"),
+        legend.position = "none"
+    )
+
+print(p)
+
+ggsave("outplots/fig3/sup3_b.distance.pdf", p, width = 10, height = 8)
+
+
+```
+
+
+
+## sup3_d 基因表达三时间三reps热图展示各cluster对应靶基因表达情况
+```{r}
+
+optimize_matrix_for_heatmap <- function(df, epsilon = NULL, dist_method = "euclidean", seriate_method = "OLO") {
+  
+  library(seriation)
+  library(matrixStats)
+  
+  # 2. 转换为矩阵
+  mat <- as.matrix(df)
+  
+  # 3. 计算 Soft-scaling
+  # 计算每行的标准差
+  row_sds <- rowSds(mat)
+  
+  # 如果没有指定 epsilon，则自动计算所有基因标准差的中位数作为平滑项
+  if (is.null(epsilon)) {
+    epsilon <- median(row_sds, na.rm = TRUE)
+  }
+  
+  # 执行 Soft-scaling: (x - mean) / (sd + epsilon)
+  # 这能有效压制低表达基因在 scale 后的伪显著性
+  mat_scaled <- t(apply(mat, 1, function(x) {
+    s <- sd(x, na.rm = TRUE)
+    m <- mean(x, na.rm = TRUE)
+    if (s == 0) return(x - m) # 处理零方差基因
+    return((x - m) / (s + epsilon))
+  }))
+  
+  # 保持原有的行列名称
+  rownames(mat_scaled) <- rownames(mat)
+  colnames(mat_scaled) <- colnames(mat)
+  
+  # 4. 进行 OLO 聚类排序 (Optimal Leaf Ordering)
+  message("正在进行 OLO 聚类排序，基因较多时请稍候...")
+  
+  # 计算行距离
+  gene_dist <- dist(mat_scaled, method = dist_method)
+  
+  # 使用 seriation 包进行优化排序
+  # OLO 算法会寻找一种叶节点排列方式，使得相邻行之间的相似度最大化
+  row_seriate <- seriate(gene_dist, method = seriate_method)
+  row_order <- get_order(row_seriate)
+  
+  # 5. 根据排序结果重排矩阵
+  mat_final <- mat_scaled[row_order, ]
+  
+  message("处理完成。")
+  return(mat_final)
+}
+
+
+
+
+# 1. 加载必要的库
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(seriation)
+library(patchwork) # 用于组合图片和控制比例
+library(matrixStats)
+
+# ---------------------------------------------------------
+# 3. 单个 ggplot 热图绘制函数
+# ---------------------------------------------------------
+plot_single_heatmap <- function(tidy_df, show_x_axis = FALSE) {
+  p <- ggplot(tidy_df, aes(x = Sample, y = Gene, fill = Zscore)) +
+    geom_tile() +
+    scale_fill_gradient2(low = "navy", mid = "white", high = "firebrick3", 
+                         midpoint = 0, limits = c(-2, 2), oob = scales::squish) +
+    facet_grid(Group ~ .) + # 使用分面来显示组名
+    theme_minimal(base_size = 16) +
+    theme(
+      axis.text.y = element_blank(), # 基因通常很多，隐藏行名
+      axis.ticks.y = element_blank(),
+      axis.title.y = element_blank(),
+      panel.grid = element_blank(),
+      strip.text.y = element_text(angle = 0, face = "bold"), # 组名水平显示
+      plot.margin = margin(t = 2, b = 2, r = 5, l = 5)
+    )
+  
+  if (!show_x_axis) {
+    p <- p + theme(axis.text.x = element_blank(), 
+                   axis.title.x = element_blank(),
+                   axis.ticks.x = element_blank())
+  } else {
+    p <- p + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  }
+  
+  return(p)
+}
+
+
+reps.tpm <- all.reps.tpm[,c(1:3,13:18)]
+tpm_log <- log2(reps.tpm + 1)
+
+
+df_list <- list()
+for (i in 1:7){
+    input.df <- tpm_log[intersect(unique(roi.proximal.tg[roi.proximal.tg$cluster == i,"id"]),tg.keeped),]
+    input.scaled <- optimize_matrix_for_heatmap(input.df)
+    df_tidy <- as.data.frame(input.scaled) %>%
+        mutate(Gene = rownames(.)) %>%
+            pivot_longer(cols = -Gene, names_to = "Sample", values_to = "Zscore")
+  
+  # 关键：将 Gene 设为 Factor，并指定 Level 为 OLO 排序后的顺序
+  # 将 Sample 也设为 Factor 保持原始列顺序
+  df_tidy$Gene <- factor(df_tidy$Gene, levels = rev(rownames(input.scaled))) # rev 是因为 ggplot 坐标轴从下往上画
+  df_tidy$Sample <- factor(df_tidy$Sample, levels = colnames(input.scaled))
+  df_tidy$Group <- paste0('cluster',i)
+    df_list[[i]] <- df_tidy
+}
+
+
+# 2. 生成 7 个 ggplot 对象
+plot_list <- list()
+for (i in 1:length(df_list)) {
+  # 只有最后一个图显示 X 轴标签
+  is_last <- (i == length(df_list))
+  plot_list[[i]] <- plot_single_heatmap(df_list[[i]], show_x_axis = is_last)
+}
+
+# ---------------------------------------------------------
+# 5. 使用 patchwork 拼接并设置比例高度
+# ---------------------------------------------------------
+# 核心：heights = row_counts 确保高度与基因数成正比
+combined_plot <- wrap_plots(plot_list, ncol = 1) + 
+  plot_layout(heights = sapply(df_list, nrow), guides = "collect") & 
+  theme(
+    legend.position = "right",
+    plot.margin = margin(t = 10, b = 10), # 增加上下间距
+    plot.background = element_blank()    # 确保背景不遮挡间隙
+  )
+
+# 打印或保存
+# print(combined_plot)
+ggsave("outplots/fig3/sup3_f.combined_ggplot_heatmap.pdf", combined_plot, width = 7, height = 12)
+
+```
+
+
+## sup3_e 各clusters对应上调下调基因数量及表达基因比例
+```{r}
+library(ggplot2)
+library(tidyr)
+
+# ---- 提取数据 ----
+
+up.tg <- res[res$change == "Up",] %>% rownames()
+down.tg <- res[res$change == "Down",] %>% rownames
+df_wide <- data.frame(matrix(nrow=7,ncol=5))
+colnames(df_wide) <- c("Cluster","GeneRatio","Up","Down","NotExpress")
+df_wide$Cluster <- paste0('cluster',1:7)
+for (i in 1:7){
+    input <- roi.proximal.tg[roi.proximal.tg$cluster == i,"id"] %>% unique
+    o1 <- length(intersect(input,tg.keeped))/length(input)
+    o2 <- length(unique(intersect(input,up.tg)))/length(input)
+    o3 <- length(unique(intersect(input,down.tg)))/length(input)
+    o4 <- length(setdiff(input,tg.keeped))/length(input)
+    df_wide[i,2:5] <- c(o1,o2,o3,o4)
+}
+
+
+# 转换为长格式用于柱状图
+df_long <- df_wide %>%
+    pivot_longer(cols = c(Up, Down,NotExpress), names_to = "Regulation", values_to = "Count")
+
+df_long$Regulation <- factor(df_long$Regulation,c("Up","Down","NotExpress"))
+# ---- 计算缩放因子（将比例映射到数量轴范围）----
+max_count <- max(df_wide$Up, df_wide$Down)
+scale_factor <- max_count / max(df_wide$GeneRatio)  # 使比例曲线能覆盖在柱子上方
+
+# ---- 绘图 ----
+p <- ggplot() +
+    
+    # 并列柱状图（基因数量）
+    geom_col(data = df_long,
+             aes(x = Cluster, y = Count, fill = Regulation),
+             position = position_dodge(width = 0.8),
+             width = 0.7) +
+    
+    # 折线 + 散点（表达比例，需缩放）
+    geom_line(data = df_wide,
+              aes(x = Cluster, y = GeneRatio),
+              group = 1, color = "#684e94", size = 1) +
+    geom_point(data = df_wide,
+               aes(x = Cluster, y = GeneRatio),
+               color = "#684e94", size = 3) +
+    
+    # 主Y轴：基因数量（左侧）
+    scale_y_continuous(
+        name = "Number of Target Gene",
+        sec.axis = sec_axis(
+            trans = ~ . / scale_factor,
+            name = "Expressed Gene Ratio"
+        )
+    ) +
+    
+    scale_fill_manual(values = c("#F44336","#5091c0","grey"),
+                      labels = c("Up regulated", "Down regulated","Not expressed")) +
+    
+    labs(x = "") +
+    theme_bw(base_size = 16) +
+    theme(
+        axis.title.y.left = element_text(color = "black"),
+        axis.title.y.right = element_text(color = "blue"),
+        legend.title = element_blank(),
+        legend.position = "top"
+    )
+
+ggsave(file = "outplots/fig3/sup3_e.all.clu.tg.description.barplot.pdf",width=8,height=5,dpi=300)
+```
+
+
+
+# sup3_d 看AB区室和HI-C交互情况
+```{r}
+msc.ab <- read.table(file = "~/Project/HI-C/AB/MSC_whole_genome.AB.PC1.bed")
+adi.ab <- read.table(file = "~/Project/HI-C/AB/ADI_whole_genome.AB.PC1.bed")
+
+msc.roi.ab.list <- list()
+for (i in 1:7){
+    input <- roi_info.split[roi_info.split$cluster == i,]
+    control <- read.table(file = paste0('output/peaks/background/cluster',i,'.bg.bed'))
+    l1 <- bt.intersect(a=input,b=msc.ab,wo=T)
+    l1.control <- bt.intersect(a=control,b=msc.ab,wo=T)
+    boxplot(l1$V13,l1.control$V9)
+    msc.roi.ab.list[[i]] <- l1$V13
+}
+
+boxplot(msc.roi.ab.list[[1]],msc.roi.ab.list[[2]],msc.roi.ab.list[[3]],msc.roi.ab.list[[4]],msc.roi.ab.list[[5]],msc.roi.ab.list[[6]],msc.roi.ab.list[[7]])
+
+l1 <- bt.intersect(a=roi_info.split,b=msc.ab,wo=T)
+l2 <- bt.intersect(a=roi_info.split,b=adi.ab,wo=T)
+
+
+
+
+```
+
+
+
+
+## sup3_g. 多变量线性回归图，尤其是展示clu567的线性回归情况，因为在clu567的靶基因是存在显著上调的。
+```{r}
+period <- c("d0","d7","d15")
+period_delta <- c("d0_d7","d7_d15","d0_d15")
+chip <- c("DNase","H3K27ac","H3K27me3","H3K36me3","H3K4me1","H3K4me3","H3K9ac","H3K9me3")
+
+
+Create_period_df <- function(input.feats.df,input.proximal.tg.df,period_temp){ # 此函数用于计算单一时间对应的特征矩阵
+    chip <- c("DNase","H3K27ac","H3K27me3","H3K36me3","H3K4me1","H3K4me3","H3K9ac","H3K9me3")
+    input.tg <- unique(input.proximal.tg.df$id)
+    output <- data.frame()
+    for (j in 1:length(input.tg)){
+        tg.tpm <- log2(all.tpm[input.tg[j],which(period == period_temp)]+1)
+        peaks <- input.proximal.tg.df[input.proximal.tg.df$id == input.tg[j],"peak"]
+        df <- input.feats.df[peaks,]
+        out_feats <- data.frame(matrix(nrow=nrow(df),ncol=length(chip)))
+        colnames(out_feats) <- chip
+        for (k in 1:length(chip)){
+            out_feats[,k] <- df[,paste0(chip[k],'_',period_temp,'_coverage')]
+        }
+        out <- cbind(data.frame(gene_id=input.tg[j],tpm=tg.tpm),out_feats)
+        output <- rbind(output,out)
+    }
+    return(output)
+
+}
+
+
+Create_delta_df <- function(input.feats.df,input.proximal.tg.df,delta_class){ # 此函数用于计算两时间作差值的特征矩阵
+    chip <- c("DNase","H3K27ac","H3K27me3","H3K36me3","H3K4me1","H3K4me3","H3K9ac","H3K9me3")
+    input.tg <- unique(input.proximal.tg.df$id)
+    period1 <- unlist(strsplit(delta_class,"_"))[1]
+    period2 <- unlist(strsplit(delta_class,"_"))[2]
+    output <- data.frame()
+    for (j in 1:length(input.tg)){
+        tg.tpm.delta <- log2(all.tpm[input.tg[j],which(period == period2)]+1)-log2(all.tpm[input.tg[j],which(period == period1)]+1)
+        peaks <- input.proximal.tg.df[input.proximal.tg.df$id == input.tg[j],"peak"]
+        df <- input.feats.df[peaks,]
+        out_feats <- data.frame(matrix(nrow=nrow(df),ncol=length(chip)))
+        colnames(out_feats) <- chip
+        for (k in 1:length(chip)){
+            out_feats[,k] <- df[,paste0(chip[k],'_',period2,'_coverage')]-df[,paste0(chip[k],'_',period1,'_coverage')]
+        }
+        out <- cbind(data.frame(gene_id=input.tg[j],tpm=tg.tpm.delta),out_feats)
+        output <- rbind(output,out)
+    }
+    return(output)
+
+}
+
+all.output.period <- data.frame()
+all.delta.period <- data.frame()
+for (i in 1:7){
+    input <- roi_info.split[roi_info.split$cluster == i,]
+    input.feats.df <- feats_coverage[roi_info.split$cluster == i,]
+    input.proximal.tg.df <- roi.proximal.tg[roi.proximal.tg$cluster == i & roi.proximal.tg$id %in% tg.keeped,]
+    output1 <- data.frame()
+    output2 <- data.frame()
+    for (j in 1:3){
+        out.period.df <- Create_period_df(input.feats.df,input.proximal.tg.df,period[j])
+        out.delta.df <- Create_delta_df(input.feats.df,input.proximal.tg.df,period_delta[j])
+        ## 计算每个chip的1分布，如果含量非常低（小于0.05）则判定这个chip不具备解释能力应该被踢出去。
+        ratio1 <- sapply(out.period.df[,-c(1,2)], function(x) mean(x == 0, na.rm = TRUE))
+        ratio2 <- sapply(out.delta.df[,-c(1,2)], function(x) mean(x == 0, na.rm = TRUE))
+        out.period.df[,colnames(out.period.df) %in% names(ratio1[ratio1 >= 0.95])] <- 0
+        out.delta.df[,colnames(out.delta.df) %in% names(ratio2[ratio2 >= 0.95])] <- 0
+        model1 <- lm(tpm ~ DNase + H3K27ac + H3K27me3 + H3K36me3 + 
+                H3K4me1 + H3K4me3 + H3K9ac + H3K9me3, 
+                data = out.period.df)
+        model2 <- lm(tpm ~ DNase + H3K27ac + H3K27me3 + H3K36me3 + 
+                H3K4me1 + H3K4me3 + H3K9ac + H3K9me3, 
+                data = out.delta.df)
+        coef_matrix1 <- as.data.frame(summary(model1)$coefficients)[-1,]
+        #coef_matrix1[,4] <- p.adjust(coef_matrix1[,4])
+        output1 <- rbind(output1,data.frame(cluster=paste0('cluster',i),period=period[j],chip=chip,estimate=coef_matrix1[match(chip,rownames(coef_matrix1)),1],pval=coef_matrix1[match(chip,rownames(coef_matrix1)),4]))
+
+        coef_matrix2 <- as.data.frame(summary(model2)$coefficients)[-1,]
+        #coef_matrix2[,4] <- p.adjust(coef_matrix2[,4])
+        output2 <- rbind(output2,data.frame(cluster=paste0('cluster',i),period=period_delta[j],chip=chip,estimate=coef_matrix2[match(chip,rownames(coef_matrix2)),1],pval=coef_matrix2[match(chip,rownames(coef_matrix2)),4]))
+     
+    }
+    all.output.period <- rbind(all.output.period,output1)
+    all.delta.period <- rbind(all.delta.period,output2)
+}
+
+## 还要把总体的放进来
+{
+    input <- roi_info.split
+    input.feats.df <- feats_coverage
+    input.proximal.tg.df <- roi.proximal.tg
+    output1 <- data.frame()
+    output2 <- data.frame()
+    for (j in 1:3){
+        out.period.df <- Create_period_df(input.feats.df,input.proximal.tg.df,period[j]) %>% unique()
+        out.delta.df <- Create_delta_df(input.feats.df,input.proximal.tg.df,period_delta[j]) %>% unique()
+        ## 计算每个chip的1分布，如果含量非常低（小于0.05）则判定这个chip不具备解释能力应该被踢出去。
+        ratio1 <- sapply(out.period.df[,-c(1,2)], function(x) mean(x == 0, na.rm = TRUE))
+        ratio2 <- sapply(out.delta.df[,-c(1,2)], function(x) mean(x == 0, na.rm = TRUE))
+        out.period.df[,colnames(out.period.df) %in% names(ratio1[ratio1 >= 0.95])] <- 0
+        out.delta.df[,colnames(out.delta.df) %in% names(ratio1[ratio2 >= 0.95])] <- 0
+        model1 <- lm(tpm ~ DNase + H3K27ac + H3K27me3 + H3K36me3 + 
+                H3K4me1 + H3K4me3 + H3K9ac + H3K9me3, 
+                data = out.period.df)
+        model2 <- lm(tpm ~ DNase + H3K27ac + H3K27me3 + H3K36me3 + 
+                H3K4me1 + H3K4me3 + H3K9ac + H3K9me3, 
+                data = out.delta.df)
+        coef_matrix1 <- as.data.frame(summary(model1)$coefficients)[-1,]
+        #coef_matrix1[,4] <- p.adjust(coef_matrix1[,4])
+        output1 <- rbind(output1,data.frame(cluster="Total",period=period[j],chip=chip,estimate=coef_matrix1[match(chip,rownames(coef_matrix1)),1],pval=coef_matrix1[match(chip,rownames(coef_matrix1)),4]))
+
+        coef_matrix2 <- as.data.frame(summary(model2)$coefficients)[-1,]
+        #coef_matrix2[,4] <- p.adjust(coef_matrix2[,4])        
+        output2 <- rbind(output2,data.frame(cluster="Total",period=period_delta[j],chip=chip,estimate=coef_matrix2[match(chip,rownames(coef_matrix2)),1],pval=coef_matrix2[match(chip,rownames(coef_matrix2)),4]))
+     
+    }
+    all.output.period <- rbind(all.output.period,output1)
+    all.delta.period <- rbind(all.delta.period,output2)
+}
+all.output.period$log10FDR <- -log10(all.output.period$pval)
+all.delta.period$log10FDR <- -log10(all.delta.period$pval)
+
+all.output.period[is.na(all.output.period)] <- 0
+all.delta.period[is.na(all.delta.period)] <- 0
+
+
+## 这里还是像发射矩阵一样画一个热图即可。
+# 绘制热图
+# 数据清洗：转为长表格格式 (Long Format)
+
+df_long <- all.output.period
+df_long$estimate[df_long$estimate >=5] <- 4.99
+df_long$period <- factor(df_long$period,c("d0","d7","d15"))
+df_long$cluster <- factor(df_long$cluster,c("Total",paste0('cluster',7:1)))
+# 增加一列用于显示星号：如果 > 1.301 则为 "*", 否则为空 ""
+df_long$sig_label <- ifelse(df_long$log10FDR > 1.301, "*", "")
+
+# 绘图：ggplot2 分面热图
+library(scales)
+p <- ggplot(df_long, aes(x = period, y = cluster, fill = estimate)) +
+  # 1. 画热图方块
+  geom_tile(color = "white") + 
+  
+  # 2. 添加显著性星号层
+  # vjust 控制星号在方块内的垂直位置，color 设为黑色或深灰
+  geom_text(aes(label = sig_label), 
+            color = "black", 
+            size = 6, 
+            vjust = 0.7) + 
+  
+  # 3. 核心修改：处理不对称的颜色范围
+  # 使用 gradientn 自定义颜色梯度，确保 0 处为白色
+  scale_fill_gradientn(
+    colors = c("#2166ac", "white", "#b2182b"), # 对应 RdBu 的深蓝、白、深红
+    values = rescale(c(-3, 0, 5)),            # 关键：将 -3, 0, 5 映射到 0, 0.5, 1 的比例空间
+    limits = c(-3, 5),                        # 设置总范围
+    name = "Estimate",
+    oob = squish                              # 如果有超出 -3 或 5 的值，将其压缩到边界颜色
+  ) +
+  
+  # 4. 分面与其他样式
+  facet_wrap(~chip, nrow = 2) + 
+  theme_minimal(base_size = 16) +
+  labs(title = "ChIP Enrichment Impact on Gene Expression",
+       x = "Time Point",
+       y = "",
+       fill = "Estimate") +
+  theme(
+    axis.text = element_text(color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.8),
+    strip.background = element_rect(fill = "grey90"),
+    panel.spacing = unit(0.5, "lines"),
+    # 如果背景色太深，星号可能看不清，可以根据需要调整
+    panel.grid = element_blank() 
+  )
+
+print(p)
+ggsave("outplots/fig3/sup3_g.all.period.lm.heatmap.pdf",p,width=8,height=8,dpi=300)
+
+
+df_long <- all.delta.period
+df_long$estimate[df_long$estimate >=5] <- 4.99
+df_long$period <- factor(df_long$period,c("d0_d7","d7_d15","d0_d15"))
+df_long$cluster <- factor(df_long$cluster,c("Total",paste0('cluster',7:1)))
+# 增加一列用于显示星号：如果 > 1.301 则为 "*", 否则为空 ""
+df_long$sig_label <- ifelse(df_long$log10FDR > 1.301, "*", "")
+
+# 绘图：ggplot2 分面热图
+library(scales)
+p <- ggplot(df_long, aes(x = period, y = cluster, fill = estimate)) +
+  # 1. 画热图方块
+  geom_tile(color = "white") + 
+  
+  # 2. 添加显著性星号层
+  # vjust 控制星号在方块内的垂直位置，color 设为黑色或深灰
+  geom_text(aes(label = sig_label), 
+            color = "black", 
+            size = 6, 
+            vjust = 0.7) + 
+  
+  # 3. 核心修改：处理不对称的颜色范围
+  # 使用 gradientn 自定义颜色梯度，确保 0 处为白色
+  scale_fill_gradientn(
+    colors = c("#762a83", "white", "#1b7837"), # 对应 RdBu 的深蓝、白、深红
+    values = rescale(c(-1, 0, 3)),            # 关键：将 -3, 0, 5 映射到 0, 0.5, 1 的比例空间
+    limits = c(-1, 3),                        # 设置总范围
+    name = "Estimate",
+    oob = squish                              # 如果有超出 -3 或 5 的值，将其压缩到边界颜色
+  ) +
+  
+  # 4. 分面与其他样式
+  facet_wrap(~chip, nrow = 2) + 
+  theme_minimal(base_size = 16) +
+  labs(title = "ChIP Enrichment Impact on Gene Expression",
+       x = "Time Point",
+       y = "",
+       fill = "Estimate") +
+  theme(
+    axis.text = element_text(color = "black"),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.8),
+    strip.background = element_rect(fill = "grey90"),
+    panel.spacing = unit(0.5, "lines"),
+    # 如果背景色太深，星号可能看不清，可以根据需要调整
+    panel.grid = element_blank() 
+  )
+
+print(p)
+ggsave("outplots/fig3/sup3_g.all.delta.lm.heatmap.pdf",p,width=8,height=8,dpi=300)
+
+
+```
+
+
+
+```{r}
+
+```
+
+
+
+
+
