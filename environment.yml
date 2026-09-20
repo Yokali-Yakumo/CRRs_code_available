@@ -1,0 +1,90 @@
+# =============================================================================
+# environment.yml — environment used for the analyses and the figures
+#
+#   conda env create -f environment.yml
+#   conda activate crrs
+#
+# Base interpreters used for the manuscript: R 4.4.3, Python 3.12.12.
+#
+# The R packages are listed without version pins because conda-forge/bioconda
+# and CRAN/Bioconductor do not version them identically. The exact versions the
+# manuscript was produced with are given as comments next to each package, so
+# the environment can be reproduced precisely with:
+#
+#   install.packages("remotes")
+#   remotes::install_version("<pkg>", "<version>")        # CRAN
+#   BiocManager::install("<pkg>")                         # Bioconductor
+# =============================================================================
+name: crrs
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - r-base=4.4.3
+  - python=3.12
+  - pysam=0.23.3
+
+  # ---- pipeline: input handling, features, dimensionality reduction --------
+  - r-data.table          # 1.17.8
+  - r-dplyr               # 1.2.0
+  - r-tidyr               # 1.3.2
+  - r-purrr               # 1.2.1
+  - r-tibble              # 3.3.1
+  - r-reshape2            # 1.4.5
+  - r-abind               # 1.4-8
+  - r-igraph              # 2.1.4
+  - r-cluster             # 2.1.8.2
+  - r-mclust              # 6.1.2
+  - r-factominer          # 2.13
+  - r-rstatix             # 0.7.3
+  - r-uwot                # 0.2.4
+  - r-fnn                 # 1.1.4.1
+  - r-matrix              # 1.7-4
+  - r-future              # 1.69.0
+  - r-future.apply        # (used by the sensitivity sweep)
+  - r-seurat              # 4.4.0
+
+  # ---- Bioconductor --------------------------------------------------------
+  - bioconductor-genomicranges        # 1.58.0
+  - bioconductor-iranges              # 2.40.0
+  - bioconductor-s4vectors            # 0.44.0
+  - bioconductor-genomeinfodb         # 1.42.3
+  - bioconductor-rtracklayer          # 1.66.0
+  - bioconductor-genomicfeatures      # (TxDb/EnsDb access)
+  - bioconductor-annotationdbi
+  - bioconductor-deseq2               # 1.46.0
+  - bioconductor-tximport
+  - bioconductor-clusterprofiler      # 4.14.6
+  - bioconductor-org.hs.eg.db         # 3.20.0
+  - bioconductor-gosemsim             # 2.32.0
+  - bioconductor-chipseeker
+  - bioconductor-ensdb.hsapiens.v75
+  - bioconductor-txdb.hsapiens.ucsc.hg19.knowngene
+
+  # ---- figures -------------------------------------------------------------
+  - r-ggplot2             # 4.0.2
+  - r-patchwork           # 1.3.2
+  - r-scales              # 1.4.0
+  - r-pheatmap            # 1.0.13
+  - r-rcolorbrewer        # 1.1-3
+  - r-fmsb                # 0.7.6
+  - r-cowplot             # 1.2.0
+  - r-ggrepel             # 0.9.6
+  - r-ggalluvial          # 0.12.6
+  - r-ggdendro
+  - r-ggridges
+  - r-dendextend
+  - r-eulerr
+  - r-upsetr
+  - r-broom
+  - r-stringr
+  - r-optparse
+  - r-locuszoomr
+  - r-princurve
+  - r-tidyverse
+  - bioconductor-gviz                 # 1.50.0
+  - bioconductor-complexheatmap       # 2.22.0
+  - r-circlize            # 0.4.17
+  - r-rmarkdown           # 2.30
+  - r-knitr               # 1.51
+  - r-ddrttree            # DDRTree 0.1.6 (CRAN)

@@ -3,15 +3,15 @@ library(fmsb)
 library(scales)
 
 # ============================================================
-# 增强时间差异的雷达图
+# Radar plots that emphasize temporal differences
 #
-# 标准化方式：
-# 对每个 mark，在所有 cluster 和所有时间点之间进行全局 min-max scaling
+# Normalization scheme:
+# For each mark, global min-max scaling across all clusters and all time points
 #
-# 保证：
-# 1. 同一 mark 不同时间点的差异更明显
-# 2. 不同 cluster 的雷达图仍使用完全相同的尺度
-# 3. 保留原代码块1的颜色、线型和填充样式
+# This ensures:
+# 1. Differences between time points are more obvious for the same mark
+# 2. Radar plots of different clusters still use exactly the same scale
+# 3. Colors, line types and fill styles of original code block 1 are preserved
 # ============================================================
 
 plot_cluster_radars <- function(
@@ -30,17 +30,17 @@ plot_cluster_radars <- function(
 ) {
 
   # ----------------------------------------------------------
-  # 1. 输入检查
+  # 1. Input checks
   # ----------------------------------------------------------
   if (length(cluster_labels) != nrow(orig_df)) {
     stop(
-      "cluster_labels 长度为 ", length(cluster_labels),
-      "，orig_df 行数为 ", nrow(orig_df),
-      "，两者不一致。"
+      "cluster_labels has length ", length(cluster_labels),
+      " but orig_df has ", nrow(orig_df),
+      " rows, so the two are inconsistent."
     )
   }
 
-  # 优先按照名称对齐 cluster_labels
+  # Prefer aligning cluster_labels by name
   if (
     !is.null(names(cluster_labels)) &&
     !is.null(rownames(orig_df)) &&
@@ -54,7 +54,7 @@ plot_cluster_radars <- function(
   }
 
   # ----------------------------------------------------------
-  # 2. 识别 coverage 列
+  # 2. Identify coverage columns
   # ----------------------------------------------------------
   cov_cols <- grep(
     "_d[0-9]+_coverage$",
@@ -64,13 +64,13 @@ plot_cluster_radars <- function(
 
   if (length(cov_cols) == 0) {
     stop(
-      "未找到形如 H3K27ac_d0_coverage 的列，",
-      "请检查列名格式。"
+      "No columns of the form H3K27ac_d0_coverage were found; ",
+      "please check the column name format."
     )
   }
 
   # ----------------------------------------------------------
-  # 3. 提取时间点
+  # 3. Extract time points
   # ----------------------------------------------------------
   times <- unique(
     sub(".*_(d[0-9]+)_coverage$", "\\1", cov_cols)
@@ -82,14 +82,14 @@ plot_cluster_radars <- function(
 
   if (length(times) > 3) {
     stop(
-      "当前颜色和线型按照最多3个时间点设置，",
-      "但检测到：",
+      "Colors and line types are defined for at most 3 time points, ",
+      "but detected: ",
       paste(times, collapse = ", ")
     )
   }
 
   # ----------------------------------------------------------
-  # 4. 确定 mark 及其排列顺序
+  # 4. Determine the marks and their ordering
   # ----------------------------------------------------------
   available_marks <- unique(
     sub("_d[0-9]+_coverage$", "", cov_cols)
@@ -100,7 +100,7 @@ plot_cluster_radars <- function(
   ]
 
   if (length(marks) < 3) {
-    stop("实际识别出的 mark 少于3个，无法绘制雷达图。")
+    stop("Fewer than 3 marks were detected, cannot draw a radar plot.")
   }
 
   missing_marks <- setdiff(
@@ -110,13 +110,13 @@ plot_cluster_radars <- function(
 
   if (length(missing_marks) > 0) {
     message(
-      "以下 mark 未在数据中找到，将被忽略：",
+      "The following marks were not found in the data and will be ignored: ",
       paste(missing_marks, collapse = ", ")
     )
   }
 
   # ----------------------------------------------------------
-  # 5. 检查所有 mark × time 组合是否完整
+  # 5. Check that all mark × time combinations are complete
   # ----------------------------------------------------------
   expected_cols <- unlist(
     lapply(
@@ -134,13 +134,13 @@ plot_cluster_radars <- function(
 
   if (length(missing_cols) > 0) {
     stop(
-      "以下 coverage 列缺失：\n",
+      "The following coverage columns are missing:\n",
       paste(missing_cols, collapse = "\n")
     )
   }
 
   # ----------------------------------------------------------
-  # 6. 按 cluster 聚合
+  # 6. Aggregate by cluster
   # ----------------------------------------------------------
   safe_mean <- function(x) {
 
@@ -164,7 +164,7 @@ plot_cluster_radars <- function(
     as.data.frame()
 
   # ----------------------------------------------------------
-  # 7. 检查缺失值
+  # 7. Check for missing values
   # ----------------------------------------------------------
   coverage_matrix <- as.matrix(
     cluster_cov[, expected_cols, drop = FALSE]
@@ -177,20 +177,20 @@ plot_cluster_radars <- function(
     ]
 
     stop(
-      "cluster 均值中存在 NA、NaN 或 Inf。\n",
-      "涉及列：\n",
+      "NA, NaN or Inf found in the cluster means.\n",
+      "Affected columns:\n",
       paste(bad_cols, collapse = "\n"),
-      "\n不建议将缺失值直接当作0。"
+      "\nTreating missing values directly as 0 is not recommended."
     )
   }
 
   # ----------------------------------------------------------
-  # 8. 计算每个 mark 的全局 minimum 和 maximum
+  # 8. Compute the global minimum and maximum for each mark
   #
-  # 注意：
-  # 范围跨越所有 cluster 和所有时间点
+  # Note:
+  # The range spans all clusters and all time points
   #
-  # 因此不同 cluster 的图仍然可以相互比较
+  # so plots of different clusters remain mutually comparable
   # ----------------------------------------------------------
   global_min_mark <- setNames(
     numeric(length(marks)),
@@ -224,10 +224,10 @@ plot_cluster_radars <- function(
     )
   }
 
-  # 每个 mark 的全局动态范围
+  # Global dynamic range of each mark
   global_range_mark <- global_max_mark - global_min_mark
 
-  # 防止某个 mark 所有值完全一致，导致除以0
+  # Guard against division by zero when all values of a mark are identical
   zero_range_marks <- names(global_range_mark)[
     !is.finite(global_range_mark) |
       global_range_mark <= .Machine$double.eps
@@ -236,8 +236,8 @@ plot_cluster_radars <- function(
   if (length(zero_range_marks) > 0) {
 
     warning(
-      "以下 mark 的全局动态范围为0，",
-      "缩放分母将设为1：",
+      "The following marks have zero global dynamic range; ",
+      "the scaling denominator will be set to 1: ",
       paste(zero_range_marks, collapse = ", ")
     )
 
@@ -245,7 +245,7 @@ plot_cluster_radars <- function(
   }
 
   # ----------------------------------------------------------
-  # 9. 创建输出目录并保存原始数据及尺度参数
+  # 9. Create the output directory and save raw values plus scaling parameters
   # ----------------------------------------------------------
   dir.create(
     outdir,
@@ -290,33 +290,33 @@ plot_cluster_radars <- function(
   )
 
   # ----------------------------------------------------------
-  # 10. 绘图样式
+  # 10. Plot styling
   #
-  # 完全保留代码块1的颜色和线型
+  # Colors and line types of code block 1 are preserved exactly
   # ----------------------------------------------------------
 
-    # 色盲友好配色：
-    # Day 0 = 蓝；Day 2 = 橙；Day 7 = 紫红
+    # Colorblind-friendly palette:
+    # Day 0 = blue; Day 2 = orange; Day 7 = reddish purple
     time_colors <- c(
     "#0072B2",  # blue
     "#E69F00",  # orange
     "#CC79A7"   # reddish purple
     )[seq_along(times)]
 
-    # 不使用填充色
+    # No fill colors
     fill_colors <- rep(
     NA_character_,
     length(times)
     )
 
-    # 保持线型差异；即使灰度打印也能区分
+    # Keep line types distinct; still distinguishable in grayscale printing
     line_types <- c(
     1,  # solid
     2,  # dashed
     3   # dotted
     )[seq_along(times)]
 
-    # 不同时间点采用不同点形状
+    # Different point shapes for different time points
     point_types <- c(
     16,  # circle
     17,  # triangle
@@ -330,7 +330,7 @@ plot_cluster_radars <- function(
   )
 
   # ----------------------------------------------------------
-  # 11. 单个 cluster 的绘图函数
+  # 11. Plotting function for a single cluster
   # ----------------------------------------------------------
   draw_radar <- function(cluster_index) {
 
@@ -338,7 +338,7 @@ plot_cluster_radars <- function(
       cluster_cov$cluster[cluster_index]
     )
 
-    # 原始 time × mark 数据矩阵
+    # Raw time × mark data matrix
     radar_raw <- matrix(
       NA_real_,
       nrow = length(times),
@@ -365,9 +365,9 @@ plot_cluster_radars <- function(
     }
 
     # --------------------------------------------------------
-    # 全局 min-max scaling
+    # Global min-max scaling
     #
-    # 所有 cluster 使用同一组 global_min/global_max
+    # All clusters use the same global_min/global_max
     # --------------------------------------------------------
     radar_scaled <- sweep(
       radar_raw,
@@ -383,11 +383,11 @@ plot_cluster_radars <- function(
       FUN = "/"
     )
 
-    # 浮点误差保护
+    # Floating-point error guard
     radar_scaled[radar_scaled < 0] <- 0
     radar_scaled[radar_scaled > 1] <- 1
 
-    # fmsb 要求第一行是最大值，第二行是最小值
+    # fmsb requires the first row to be the maximum and the second the minimum
     plot_data <- as.data.frame(
       rbind(
         max = rep(
@@ -405,12 +405,12 @@ plot_cluster_radars <- function(
     colnames(plot_data) <- marks
 
     # --------------------------------------------------------
-    # 页面边距
+    # Plot margins
     #
-    # 左右边距略加大，减少 H3K4me1 等标签被截断
+    # Slightly wider left and right margins reduce clipping of labels such as H3K4me1
     # --------------------------------------------------------
     # --------------------------------------------------------
-    # 页面边距
+    # Plot margins
     # --------------------------------------------------------
     if (show_legend) {
 
@@ -432,31 +432,31 @@ plot_cluster_radars <- function(
     }
 
     # --------------------------------------------------------
-    # 雷达图
+    # Radar chart
     #
-    # 保留原代码块1的样式
+    # Preserve the styling of original code block 1
     # --------------------------------------------------------
     radarchart(
     plot_data,
 
-    # 不显示径向数值刻度，使图更简洁
+    # Hide radial tick labels for a cleaner plot
     axistype = 0,
 
     # ------------------------------------------------------
-    # 数据曲线：无填充，线条和点更突出
+    # Data curves: no fill, lines and points stand out more
     # ------------------------------------------------------
     pcol = time_colors,
     pfcol = fill_colors,
     plwd = 3.8,
     plty = line_types,
 
-    # 数据点：稍大、稍醒目
+    # Data points: slightly larger and more prominent
     pty = point_types,
     pcex = 1.35,
 
     # ------------------------------------------------------
-    # 网格：减少圈数、显著弱化
-    # seg = 3 即仅保留较少的内部同心多边形
+    # Grid: fewer rings, markedly subdued
+    # seg = 3 keeps only a few inner concentric polygons
     # ------------------------------------------------------
     cglcol = "#D9D9D9",
     cglwd = 0.7,
@@ -464,17 +464,17 @@ plot_cluster_radars <- function(
     cglty = 1,
 
 
-    # 轴线采用更浅灰色
+    # Axis lines use a lighter gray
     axislabcol = "#666666",
 
     # ------------------------------------------------------
-    # Marker 标签：全部使用黑色，不与曲线竞争
+    # Marker labels: all black so they do not compete with the curves
     # ------------------------------------------------------
     vlabels = marks,
     vlcex = 1.05
     )
 
-    # 可选图例
+    # Optional legend
     if (show_legend) {
 
       legend(
@@ -495,7 +495,7 @@ plot_cluster_radars <- function(
   }
 
   # ----------------------------------------------------------
-  # 12. 输出每个 cluster 的 PDF 和 PNG
+  # 12. Write a PDF and PNG for each cluster
   # ----------------------------------------------------------
   for (i in seq_len(nrow(cluster_cov))) {
 
@@ -527,7 +527,7 @@ plot_cluster_radars <- function(
       )
     )
 
-    # 矢量PDF
+    # Vector PDF
     grDevices::cairo_pdf(
       filename = pdf_file,
       width = pdf_width,
@@ -539,7 +539,7 @@ plot_cluster_radars <- function(
 
     dev.off()
 
-    # 高分辨率PNG
+    # High-resolution PNG
     png(
       filename = png_file,
       width = 2000,
@@ -553,12 +553,12 @@ plot_cluster_radars <- function(
 
     dev.off()
 
-    message("已保存：", pdf_file)
-    message("已保存：", png_file)
+    message("Saved: ", pdf_file)
+    message("Saved: ", png_file)
   }
 
   # ----------------------------------------------------------
-  # 13. 多页PDF
+  # 13. Multi-page PDF
   # ----------------------------------------------------------
   all_pdf <- file.path(
     outdir,
@@ -580,9 +580,9 @@ plot_cluster_radars <- function(
   dev.off()
 
   message(
-    "全部完成：共生成 ",
+    "All done: generated ",
     nrow(cluster_cov),
-    " 个 cluster 的雷达图。"
+    " cluster radar plots."
   )
 
   invisible(
@@ -599,7 +599,7 @@ plot_cluster_radars <- function(
 
 
 # ============================================================
-# 运行
+# Run
 # ============================================================
 
 radar_result <- plot_cluster_radars(
@@ -607,8 +607,8 @@ radar_result <- plot_cluster_radars(
   cluster_labels = cluster_labels,
   outdir = "outplots/radar_publication",
 
-  # 原来是1.3，会明显压缩差异
-  # 改为1.05，仅保留少量外部空间
+  # Was 1.3, which visibly compressed the differences
+  # Changed to 1.05 to leave only a little outer space
   axis_expand = 1.05,
 
   show_legend = FALSE

@@ -1,10 +1,6 @@
-
-<!--
-Reproduces main Figure 3 (revised plotting with an additional intergenic_far annotation class, based on the v2 proximal-target-gene outputs). Inputs (examples): output/peaks/cluster_tg/cluster{i}.rois.targetGene.tsv and cluster{i}.bg.targetGene.tsv. Outputs: outplots/fig3*.pdf.
---> 
 fig3.plots
 # =====================================================
-## fig3_a 与control相比，在靶基因对应各区域的富集水平
+## fig3_a Enrichment at the regions of target genes relative to control
 ```{r}
 
 loc.annot.class <- c("promoter","exon","intron","distal_regulatory","intergenic_far")
@@ -28,56 +24,56 @@ for (i in 1:7){
 }
 
 
-# 加载必要的库
+# Load required libraries
 library(ggplot2)
 library(dplyr)
 
-# 1. 准备数据 (假设你的 dataframe 叫 all.loc.annot.df)
-# 为了演示，如果数据还没转换成数值型，先确保转换
+# 1. Prepare the data (the data frame is assumed to be named all.loc.annot.df)
+# For illustration only: make sure the data are converted to numeric if this has not been done yet
 df <- all.loc.annot.df
 df$pval <- ifelse(df$pval < 2.2e-16,2.2e-16,df$pval)
 
-# 转换 OR 为 Beta (log e)
+# Convert OR to beta (log e)
 df$beta <- log(df$OR)
 
-# 处理显著性大小：
-# 设定阈值（例如 p < 0.05）。
-# 如果不显著，设为一个固定小值；如果显著，根据 -log10(p) 映射到一个较大的范围。
+# Handle the significance magnitude:
+# Set a threshold (for example p < 0.05).
+# Non-significant points are given a fixed small value; significant points are mapped from -log10(p) onto a larger range.
 df <- df %>%
   mutate(
     is_sig = ifelse(pval < 0.05, "Significant", "Not Significant"),
     log_p = -log10(pval),
-    # 创建一个用于绘图的大小变量：
-    # 不显著的点统一给一个很小的值（例如 1），显著的点从 4 开始往上加
+    # Create a size variable for plotting:
+    # Non-significant points all get a very small value (e.g. 1), while significant points start at 4 and scale upwards
     plot_size = ifelse(pval >= 0.05, 1, 4 + (log_p / max(log_p) * 6))
   )
 
 df <- df[df$annot != "intergenic_far",]
-# 2. 因子排序（保持逻辑顺序）
+# 2. Factor ordering (keep the logical order)
 df$cluster <- factor(df$cluster, levels = rev(unique(df$cluster)))
 df$annot <- factor(df$annot, levels = c("promoter", "exon", "intron", "distal_regulatory"))
 
-# 3. 绘图
+# 3. Plot
 p <- ggplot(df, aes(x = annot, y = cluster)) +
-  # 绘制背景网格线（可选，增加引导感）
+  # Draw background grid lines (optional, adds visual guidance)
   geom_point(aes(size = plot_size, color = beta)) +
   
-  # 颜色设置：使用 gradient2 并在 0 附近设置极窄的过渡
-  # 这样哪怕是 0.001 也会立刻带上颜色倾向
+  # Colour settings: use gradient2 with a very narrow transition around 0
+  # so that even 0.001 immediately takes on a colour bias
   scale_color_gradient2(
-    low = "#377EB8",      # 蓝色 (Diluted)
-    mid = "white",        # 0 为白色
-    high = "#E41A1C",     # 红色 (Enriched)
+    low = "#377EB8",      # blue (Diluted)
+    mid = "white",        # white at 0
+    high = "#E41A1C",     # red (Enriched)
     midpoint = 0,
-    name = expression(beta == log(OR)) # Legend 标题显示公式
+    name = expression(beta == log(OR)) # legend title displaying the formula
   ) +
   
-  # 大小设置：取消连续映射，直接使用计算好的 plot_size
+  # Size settings: drop the continuous mapping and use the precomputed plot_size directly
   scale_size_identity(
     guide = "legend", 
     name = "Significance",
     breaks = c(1, 3, 5),
-    labels = c("p >= 0.05", "p < 0.01", "p < 1e-10") # 这里的 label 需根据实际数据调整
+    labels = c("p >= 0.05", "p < 0.01", "p < 1e-10") # these labels need to be adjusted to the actual data
   ) +
   
   theme_bw(base_size = 16) +
@@ -97,7 +93,7 @@ ggsave("outplots/fig3/fig3_a.loc.tg.annot.dotplot.pdf",p,width=6,height=8,dpi=30
 ```
 
 # =====================================================
-## sup3_a ChIPseeker作基因组区域注释
+## sup3_a Genomic region annotation with ChIPseeker
 ```{r}
 library(ChIPseeker)
 
@@ -136,7 +132,7 @@ ggsave(file = "outplots/fig3/sup3_a.genome.location.annot.pdf",p2,width=10,heigh
 
 
 # =====================================================
-## sup3_b 各clusters与其靶基因的距离的山脊图
+## sup3_b Ridge plot of the distance between each cluster and its target genes
 ```{r}
 
 clu.distance.list <- list()
@@ -153,7 +149,7 @@ for (i in 1:7){
 library(data.table)
 library(ggplot2)
 
-## 1. 把 list 转成长表
+## 1. Convert the list into a long table
 plot.df <- rbindlist(lapply(seq_along(clu.distance.list), function(i){
     data.table(
         cluster = paste0("cluster", i),
@@ -161,17 +157,17 @@ plot.df <- rbindlist(lapply(seq_along(clu.distance.list), function(i){
     )
 }))
 
-## 2. 设定顺序：从上到下 cluster1 ~ cluster7
+## 2. Set the order: cluster1 to cluster7 from top to bottom
 plot.df$cluster <- factor(plot.df$cluster, levels = paste0("cluster", 1:7))
 
-## 3. 计算每个 cluster 的样本量，可选
+## 3. Compute the sample size of each cluster (optional)
 n.df <- plot.df[, .(n = .N), by = cluster]
 n.df[, cluster_lab := paste0(cluster, "  (n=", n, ")")]
 
 plot.df <- merge(plot.df, n.df[, .(cluster, cluster_lab)], by = "cluster", all.x = TRUE)
 plot.df$cluster_lab <- factor(plot.df$cluster_lab, levels = n.df$cluster_lab[match(paste0("cluster", 1:7), n.df$cluster)])
 
-## 4. 先计算统一的y轴上限，保证所有panel一致
+## 4. Compute a common y axis upper limit first so that all panels match
 dens_list <- lapply(split(plot.df$log_distance, plot.df$cluster), density)
 ymax <- max(sapply(dens_list, function(x) max(x$y))) * 1.05
 
@@ -186,7 +182,7 @@ my_colors <- c(
   "cluster7" = "#feb24c"
 )
 
-## 5. 作图
+## 5. Plot
 p <- ggplot(plot.df, aes(x = log_distance, color = cluster,fill = cluster)) +
     geom_density(alpha = 0.3, linewidth = 0.8) +
     facet_wrap(~ cluster_lab, ncol = 1, scales = "fixed", strip.position = "left") +
@@ -226,7 +222,7 @@ ggsave("outplots/fig3/sup3_b.distance.pdf", p, width = 10, height = 8)
 
 
 # =====================================================
-## fig3_b 各cluster靶基因数量分布图
+## fig3_b Distribution of the number of target genes per cluster
 ```{r}
 library(ggplot2)
 library(dplyr)
@@ -249,13 +245,13 @@ library(DESeq2)
 period <- c("MSC","ADI-7d","ADI-15d")
 sample_list <- c("MSC_rep1","MSC_rep2","MSC_rep3","ADI-7d_rep1","ADI-7d_rep2","ADI-7d_rep3","ADI-15d_rep1","ADI-15d_rep2","ADI-15d_rep3")
 
-# 定义存在表达的基因
+# Define genes that are expressed
 tg.keeped <- setdiff(ref$gene_id,rownames(all.tpm[all.tpm$MSC < 1 & all.tpm$ADI_7d < 1 & all.tpm$ADI_15d < 1,]))
 
 files <- paste0('~/Project/19-NG/RNA-seq/out/',sample_list,'.genes.results')
 txi <- tximport(files, type="rsem")
 
-# 把非正长度处理掉（0/NA/负数）
+# Deal with non-positive lengths (0/NA/negative)
 txi$length[!is.finite(txi$length) | txi$length <= 0] <- 1
 sampleTable <- data.frame(
   row.names = names(files),
@@ -304,62 +300,62 @@ for (i in 1:7){
 }
 
 
-# 2. 数据清洗与因子排序
+# 2. Data cleaning and factor ordering
 plot_data <- all.clusters.tg.res.annot %>%
   pivot_longer(cols = c(repressed, unchanged, induced, silent), 
                names_to = "fate", values_to = "proportion")
 
-# 设定 Fate 的顺序 (从左到右：Induced -> Unchanged -> Repressed -> Silent)
+# Set the Fate order (left to right: Induced -> Unchanged -> Repressed -> Silent)
 plot_data$fate <- factor(plot_data$fate, 
                          levels = rev(c("induced", "repressed", "unchanged", "silent")))
 
-# 设定 Cluster 顺序 (确保图中从上到下是 1-7)
+# Set the Cluster order (so that the plot runs 1-7 from top to bottom)
 plot_data$cluster <- factor(plot_data$cluster, 
                             levels = rev(paste0("cluster", 1:7)))
 
-# 设定 Category 顺序
+# Set the Category order
 plot_data$category <- factor(plot_data$category, levels = c("d7-d0", "d14-d7"))
 library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(scales)
-# 3. 绘图
+# 3. Plot
 p <- ggplot(plot_data, aes(x = cluster, y = proportion, fill = fate)) +
-  # 绘制条形图，添加白色细边框增加精致感
+  # Draw the bars and add a thin white border for a more refined look
   geom_bar(stat = "identity", position = "stack", width = 0.7, color = "white", linewidth = 0.2) +
-  # 坐标轴翻转
+  # Flip the coordinate axes
   coord_flip() +
-  # 分面：上下排列，不共享 Y 轴刻度（为了保持独立感）
+  # Facets: stacked vertically without a shared Y axis scale (to keep them independent)
   facet_grid(category ~ ., scales = "free_y", space = "free_y") +
-  # 配色方案
+  # Colour scheme
   scale_fill_manual(values = c(
-    "induced"   = "#E64B35FF", # 珊瑚红 (NPG)
-    "unchanged" = "#F0F0F0",   # 极浅灰
-    "repressed" = "#4DBBD5FF", # 灰蓝 (NPG)
-    "silent"    = "#3C3C3CFF"  # 深炭灰
+    "induced"   = "#E64B35FF", # coral red (NPG)
+    "unchanged" = "#F0F0F0",   # very light grey
+    "repressed" = "#4DBBD5FF", # greyish blue (NPG)
+    "silent"    = "#3C3C3CFF"  # dark charcoal grey
   )) +
-  # 格式化 Y 轴为百分比
+  # Format the Y axis as percentages
   scale_y_continuous(labels = percent_format(), expand = c(0, 0)) +
-  # 主题美化
+  # Theme styling
   theme_minimal(base_size = 16) +
   theme(
-    # 移除背景网格
+    # Remove the background grid
     panel.grid = element_blank(),
-    # 分面标签美化
+    # Style the facet strips
     strip.background = element_rect(fill = "gray95", color = NA),
     strip.text = element_text(face = "bold"),
-    # 坐标轴文字
+    # Axis text
     axis.text = element_text(color = "black"),
     axis.title = element_blank(),
-    # 图例位置
+    # Legend position
     legend.position = "right",
     legend.title = element_blank(),
-    # 增加面板之间的间距
+    # Increase the spacing between panels
     panel.spacing = unit(1, "lines"),
     plot.margin = margin(10, 20, 10, 10)
   )
 
-# 4. 输出
+# 4. Output
 print(p)
 ggsave("outplots/fig3/fig3_b.Gene_Fate_Proportion.pdf", p, width = 7, height = 8,dpi=300)
 
@@ -368,7 +364,7 @@ ggsave("outplots/fig3/fig3_b.Gene_Fate_Proportion.pdf", p, width = 7, height = 8
 
 
 # =====================================================
-## fig3_c 各cluster靶基因表达箱线图
+## fig3_c Boxplot of target gene expression per cluster
 ```{r}
 tg.keeped <- all.tpm[all.tpm$MSC >=1 | all.tpm$ADI_7d >=1 | all.tpm$ADI_15d >=1,] %>% row.names()
 tg.keeped <- intersect(tg.keeped,ref$gene_id)
@@ -397,10 +393,10 @@ data$cluster <- factor(data$cluster,paste0('cluster',1:7))
 
 data$row_group <- ifelse(data$cluster %in% c("cluster1", "cluster2", "cluster3", "cluster4"), "Group A", "Group B")
 
-# 如果你的 cluster 是数字 1-7，则用：
+# If cluster is numeric 1-7, use instead:
 # data$row_group <- ifelse(data$cluster <= 4, "Group A", "Group B")
 
-# 2. 绘图
+# 2. Plot
 p <- ggplot(data, aes(x = cluster, y = tpm, fill = category)) +
   stat_boxplot(geom = "errorbar",
                width=0.4,
@@ -412,7 +408,7 @@ p <- ggplot(data, aes(x = cluster, y = tpm, fill = category)) +
   labs(y = "log(Target Gene TPM +1)", x = " ", fill = "Class") +
   theme_bw(base_size = 16) +
   
-  # --- 关键修改部分：分面 ---
+  # --- Key modification: faceting ---
   facet_wrap(~row_group, ncol = 1, scales = "free_x") + 
   
   theme(
@@ -424,12 +420,12 @@ p <- ggplot(data, aes(x = cluster, y = tpm, fill = category)) +
     panel.grid.minor = element_blank(), 
     panel.border = element_rect(color = "black"),
     
-    # 隐藏分面标签的背景和文字（如果你不想看到 "Group A" "Group B" 的横条）
+    # Hide the facet strip background and text (if the "Group A" / "Group B" bars are not wanted)
     strip.background = element_blank(),
     strip.text = element_blank()
   )
 
-# 保存图片（注意：分面后高度可能需要增加，建议 height 调大一点，比如 7 或 8）
+# Save the figure (note: faceting may require a larger height, e.g. 7 or 8)
 ggsave(p, file = "outplots/fig3/fig3_d.all.clu.tg.tpm.pdf", width = 8, height = 8, dpi = 300)
 
 ```
@@ -571,7 +567,7 @@ fwrite(all.go.down.mat,file = "/storage/main/projects/bigcgpu-prj/zhangtianpei/P
 
 
 
-## sup3_c. 靶基因与control相比其表达差异
+## sup3_c. Expression differences of target genes relative to control
 ```{r}
 all.clu.tpm <- data.frame()
 for (i in 1:7){
@@ -595,7 +591,7 @@ for (i in 1:7){
 library(ggplot2)
 library(dplyr)
 
-# 设置因子顺序
+# Set the factor order
 all.clu.tpm <- all.clu.tpm %>%
   mutate(
     cluster = factor(cluster, levels = paste0("cluster", 1:7)),
@@ -1208,7 +1204,7 @@ message("Done. Results saved in: ", outdir)
 
 
 
-## sup3_g. 多变量线性回归图，尤其是展示clu567的线性回归情况，因为在clu567的靶基因是存在显著上调的。
+## sup3_g. Multivariable linear regression plots, in particular the regression for clu567, because the target genes of clu567 are significantly upregulated.
 ```{r}
 period <- c("d0","d7","d15")
 period_delta <- c("d0_d7","d7_d15","d0_d15")
@@ -1216,7 +1212,7 @@ feats_coverage <- orig_df[,grep("_coverage",colnames(orig_df),value=T)]
 chip <- c("DNase","H3K27ac","H3K27me3","H3K36me3","H3K4me1","H3K4me3","H3K9ac","H3K9me3")
 
 
-Create_period_df <- function(input.feats.df,input.proximal.tg.df,period_temp){ # 此函数用于计算单一时间对应的特征矩阵
+Create_period_df <- function(input.feats.df,input.proximal.tg.df,period_temp){ # this function computes the feature matrix for a single time point
     chip <- c("DNase","H3K27ac","H3K27me3","H3K36me3","H3K4me1","H3K4me3","H3K9ac","H3K9me3")
     input.tg <- unique(input.proximal.tg.df$id)
     output <- data.frame()
@@ -1237,7 +1233,7 @@ Create_period_df <- function(input.feats.df,input.proximal.tg.df,period_temp){ #
 }
 
 
-Create_delta_df <- function(input.feats.df,input.proximal.tg.df,delta_class){ # 此函数用于计算两时间作差值的特征矩阵
+Create_delta_df <- function(input.feats.df,input.proximal.tg.df,delta_class){ # this function computes the feature matrix of the difference between two time points
     chip <- c("DNase","H3K27ac","H3K27me3","H3K36me3","H3K4me1","H3K4me3","H3K9ac","H3K9me3")
     input.tg <- unique(input.proximal.tg.df$id)
     period1 <- unlist(strsplit(delta_class,"_"))[1]
@@ -1269,7 +1265,7 @@ all.delta.period <- data.frame()
     output2 <- data.frame()
     for (j in 1:3){
         out.delta.df <- Create_delta_df(input.feats.df,input.proximal.tg.df,period_delta[j])
-        ## 计算每个chip的1分布，如果含量非常低（小于0.05）则判定这个chip不具备解释能力应该被踢出去。
+        ## Examine the distribution of 1s for each chip: a chip whose content is very low (below 0.05) has no explanatory power and should be dropped.
         ratio2 <- sapply(out.delta.df[,-c(1,2)], function(x) mean(x == 0, na.rm = TRUE))
         out.delta.df[,colnames(out.delta.df) %in% names(ratio2[ratio2 >= 0.95])] <- 0
         model2 <- lm(tpm ~ DNase + H3K27ac + H3K27me3 + H3K36me3 + 
@@ -1293,7 +1289,7 @@ all.delta.period <- data.frame()
     output2 <- data.frame()
     for (j in 1:3){
         out.delta.df <- Create_delta_df(input.feats.df,input.proximal.tg.df,period_delta[j])
-        ## 计算每个chip的1分布，如果含量非常低（小于0.05）则判定这个chip不具备解释能力应该被踢出去。
+        ## Examine the distribution of 1s for each chip: a chip whose content is very low (below 0.05) has no explanatory power and should be dropped.
         ratio2 <- sapply(out.delta.df[,-c(1,2)], function(x) mean(x == 0, na.rm = TRUE))
         out.delta.df[,colnames(out.delta.df) %in% names(ratio2[ratio2 >= 0.95])] <- 0
         model2 <- lm(tpm ~ DNase + H3K27ac + H3K27me3 + H3K36me3 + 
@@ -1310,45 +1306,45 @@ all.delta.period <- data.frame()
 
 
 
-# 1. 加载必要的库
+# 1. Load required libraries
 library(ggplot2)
 library(dplyr)
 
-# 2. 准备数据
+# 2. Prepare the data
 data <- all.delta.period[1:16,]
 
 chip_order <- unique(data$chip)
 data <- data %>%
   mutate(
     logP = -log10(pval),
-    # 定义显著性分组
+    # Define the significance groups
     group = case_when(
       pval < 0.05 & estimate > 0 ~ "Sig Positive",
       pval < 0.05 & estimate < 0 ~ "Sig Negative",
       TRUE ~ "Non-significant"
     ),
-    # 修正误差线逻辑：正值向右(estimate+se)，负值向左(estimate-se)
+    # Error bar logic: positive values to the right (estimate+se), negative values to the left (estimate-se)
     error_limit = ifelse(estimate >= 0, estimate + se, estimate - se),
-    # 保持原始顺序：factor 级别反转，使第一个出现在图表最上方
+    # Keep the original order: reverse the factor levels so that the first entry appears at the top of the plot
     chip = factor(chip, levels = rev(chip_order))
   )
 
-# 4. 定义绘图函数
+# 4. Define the plotting function
 draw_regression_plot <- function(df_sub, title_name) {
   ggplot(df_sub, aes(x = estimate, y = chip, fill = group, alpha = logP)) +
-    # 误差线图层：放在柱子下面
-    # xmin 和 xmax 始终包含 estimate 和计算出的 error_limit
+    # Error bar layer: placed beneath the bars
+    # xmin and xmax always span estimate and the computed error_limit
     geom_errorbarh(aes(xmin = estimate, xmax = error_limit), 
                    height = 0.2, color = "black", alpha = 1) +
-    # 柱状图图center
+    # Bar chart layer
     geom_col(color = "black", linewidth = 0.5) +
-    # 颜色映射
-    scale_fill_manual(values = c("Sig Positive" = "#E41A1C",   # 红色
-                                 "Sig Negative" = "#377EB8",   # 蓝色
+    # Colour mapping
+    scale_fill_manual(values = c("Sig Positive" = "#E41A1C",   # red
+                                 "Sig Negative" = "#377EB8",   # blue
                                  "Non-significant" = "grey80")) +
-    # 透明度映射（P值越小越显著，颜色越深）
+    # Alpha mapping (the smaller the P value, the more significant and the darker the colour)
     scale_alpha_continuous(range = c(0.7, 1), guide = "none") +
-    # 0刻度线
+    # Zero reference line
     geom_vline(xintercept = 0, linetype = "dashed", color = "grey40") +
     labs(title = "",
          x = "Estimate (Coefficient)",
@@ -1361,7 +1357,7 @@ draw_regression_plot <- function(df_sub, title_name) {
     )
 }
 
-# 5. 生成并展示图表
+# 5. Generate and display the plots
 plot_d0_d7 <- draw_regression_plot(filter(data, period == "d0_d7"), "d0_d7")
 plot_d7_d15 <- draw_regression_plot(filter(data, period == "d7_d15"), "d7_d15")
 
@@ -1386,7 +1382,7 @@ all.delta.period <- data.frame()
     output2 <- data.frame()
     for (j in 1:3){
         out.delta.df <- Create_delta_df(input.feats.df,input.proximal.tg.df,period_delta[j])
-        ## 计算每个chip的1分布，如果含量非常低（小于0.05）则判定这个chip不具备解释能力应该被踢出去。
+        ## Examine the distribution of 1s for each chip: a chip whose content is very low (below 0.05) has no explanatory power and should be dropped.
         ratio2 <- sapply(out.delta.df[,-c(1,2)], function(x) mean(x == 0, na.rm = TRUE))
         out.delta.df[,colnames(out.delta.df) %in% names(ratio2[ratio2 >= 0.95])] <- 0
         model2 <- lm(tpm ~ DNase + H3K27ac + H3K27me3 + H3K36me3 + 
@@ -1403,45 +1399,45 @@ all.delta.period <- data.frame()
 
 
 
-# 1. 加载必要的库
+# 1. Load required libraries
 library(ggplot2)
 library(dplyr)
 
-# 2. 准备数据
+# 2. Prepare the data
 data <- all.delta.period[1:16,]
 
 chip_order <- unique(data$chip)
 data <- data %>%
   mutate(
     logP = -log10(FDR),
-    # 定义显著性分组
+    # Define the significance groups
     group = case_when(
       FDR < 0.05 & estimate > 0 ~ "Sig Positive",
       FDR < 0.05 & estimate < 0 ~ "Sig Negative",
       TRUE ~ "Non-significant"
     ),
-    # 修正误差线逻辑：正值向右(estimate+se)，负值向左(estimate-se)
+    # Error bar logic: positive values to the right (estimate+se), negative values to the left (estimate-se)
     error_limit = ifelse(estimate >= 0, estimate + se, estimate - se),
-    # 保持原始顺序：factor 级别反转，使第一个出现在图表最上方
+    # Keep the original order: reverse the factor levels so that the first entry appears at the top of the plot
     chip = factor(chip, levels = rev(chip_order))
   )
 
-# 4. 定义绘图函数
+# 4. Define the plotting function
 draw_regression_plot <- function(df_sub, title_name) {
   ggplot(df_sub, aes(x = estimate, y = chip, fill = group, alpha = logP)) +
-    # 误差线图层：放在柱子下面
-    # xmin 和 xmax 始终包含 estimate 和计算出的 error_limit
+    # Error bar layer: placed beneath the bars
+    # xmin and xmax always span estimate and the computed error_limit
     geom_errorbarh(aes(xmin = estimate, xmax = error_limit), 
                    height = 0.2, color = "black", alpha = 1) +
-    # 柱状图图center
+    # Bar chart layer
     geom_col(color = "black", linewidth = 0.5) +
-    # 颜色映射
-    scale_fill_manual(values = c("Sig Positive" = "#E41A1C",   # 红色
-                                 "Sig Negative" = "#377EB8",   # 蓝色
+    # Colour mapping
+    scale_fill_manual(values = c("Sig Positive" = "#E41A1C",   # red
+                                 "Sig Negative" = "#377EB8",   # blue
                                  "Non-significant" = "grey80")) +
-    # 透明度映射（P值越小越显著，颜色越深）
+    # Alpha mapping (the smaller the P value, the more significant and the darker the colour)
     scale_alpha_continuous(range = c(0.7, 1), guide = "none") +
-    # 0刻度线
+    # Zero reference line
     geom_vline(xintercept = 0, linetype = "dashed", color = "grey40") +
     labs(title = "",
          x = "Estimate (Coefficient)",
@@ -1454,7 +1450,7 @@ draw_regression_plot <- function(df_sub, title_name) {
     )
 }
 
-# 5. 生成并展示图表
+# 5. Generate and display the plots
 plot_d0_d7 <- draw_regression_plot(dplyr::filter(data, period == "d0_d7"), "d0_d7")
 plot_d7_d15 <- draw_regression_plot(dplyr::filter(data, period == "d7_d15"), "d7_d15")
 

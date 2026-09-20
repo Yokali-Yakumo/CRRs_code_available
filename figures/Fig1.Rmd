@@ -5,7 +5,7 @@ Reproduces main Figure 1: locus schematic/ChIP track plots (Gviz) and binarized 
 fig1.plots
 
 # ===================================================
-# a. 以基因EZH2周围区域做示意图绘制轨道图及对应的二值化网格图
+# a. Schematic-style track plots around the EZH2 gene locus and the corresponding binarized grid map
 
 ```{r}
 library(Gviz)
@@ -13,15 +13,15 @@ library(rtracklayer)
 library(GenomicRanges)
 
 # ==========================================
-# 1. 参数设置 (请根据你的实际情况修改)
+# 1. Parameter settings (adjust these to your own setup)
 # ==========================================
-gen <- "hg19"  # 基因组版本
-chr <- "chr7"  # 目标染色体
-start_pos <- 148580000  # 起始位置
-end_pos   <- 148590000  # 终止位置
+gen <- "hg19"  # genome build
+chr <- "chr7"  # target chromosome
+start_pos <- 148580000  # start position
+end_pos   <- 148590000  # end position
 
-# 定义你的 8 个 BigWig 文件路径和显示的名称
-# 建议按照生物学逻辑排序（如：活跃标记 -> 抑制标记）
+# Define the paths of the 8 BigWig files and the names to display
+# Recommended to order them by biological logic (e.g. active marks -> repressive marks)
 bw_files <- c(
   "DNase"    = "~/Project/ChIP/DNase/DNase-0d.10bp.CPM.bw",
   "H3K27ac"  = "~/Project/ChIP/H3K27ac/H3K27ac-0d.10bp.CPM.bw",
@@ -33,28 +33,28 @@ bw_files <- c(
   "H3K9me3"  = "~/Project/ChIP/H3K9me3/H3K9me3-0d.10bp.CPM.bw"
 )
 
-# 定义高级感配色方案 (学术莫兰迪色系)
+# Define a refined color scheme (academic Morandi palette)
 track_colors <- c(
-  "#94a3b8", # DNase (中性灰)
-  "#f87171", # H3K27ac (珊瑚红)
-  "#4ade80", # H3K4me1 (嫩绿)
-  "#fbbf24", # H3K4me3 (金黄)
-  "#fb923c", # H3K9ac (橙色)
-  "#0d9488", # H3K36me3 (青色)
-  "#60a5fa", # H3K27me3 (天蓝)
-  "#818cf8"  # H3K9me3 (淡紫)
+  "#94a3b8", # DNase (neutral gray)
+  "#f87171", # H3K27ac (coral red)
+  "#4ade80", # H3K4me1 (fresh green)
+  "#fbbf24", # H3K4me3 (golden yellow)
+  "#fb923c", # H3K9ac (orange)
+  "#0d9488", # H3K36me3 (teal)
+  "#60a5fa", # H3K27me3 (sky blue)
+  "#818cf8"  # H3K9me3 (light purple)
 )
 
-# --- 关键步骤：预设 8 个轨道的 Y 轴上限 ---
-# 请根据你实际数据的信号强度调整这些数值
-# 如果你想让所有轨道共用一个刻度，可以设为相同值
+# --- Key step: preset the Y-axis upper limit for the 8 tracks ---
+# Adjust these values according to the signal strength of your actual data
+# If you want all tracks to share one scale, set them to the same value
 max_values <- c(20, 0.3, 0.4, 1.0, 0.5, 0.4, 1.0, 0.4) 
 
 # ==========================================
-# 2. 构建轨道 (Tracks)
+# 2. Build the tracks (Tracks)
 # ==========================================
 
-# A. 坐标轴轨道 (最上方)
+# A. Genome axis track (at the very top)
 axisTrack <- GenomeAxisTrack(
   exponent = 0, 
   cex = 0.8, 
@@ -62,47 +62,47 @@ axisTrack <- GenomeAxisTrack(
   fontcolor = "black"
 )
 
-# B. 数据轨道列表
+# B. List of data tracks
 data_tracks <- list()
 
 for (i in seq_along(bw_files)) {
   track_name <- names(bw_files)[i]
   bw_path <- bw_files[i]
   
-  # 在 DataTrack 的参数中进行如下设置：
+  # Set the DataTrack parameters as follows:
 data_tracks[[track_name]] <- DataTrack(
     range = bw_path,
     genome = gen,
     name = track_name,
-    type = "poly",          # 填充面积图，类似示意图中的山峰
-    window = "mean",        # 使用均值平滑
-    windowSize = 200,        # 窗口大小，如果还是不平滑，可以试着调到 100 或 200
+    type = "poly",          # filled area plot, resembling the peaks in a schematic
+    window = "mean",        # smooth using the mean
+    windowSize = 200,        # window size; if it is still not smooth, try 100 or 200
     aggregation = "mean",
     
-    # --- Y 轴独立设置 ---
-    ylim = c(0, max_values[i]), # 关键：使用预设的第 i 个上限
-    showAxis = TRUE,            # 显示 Y 轴刻度
-    col.axis = "black",         # 刻度颜色
-    cex.axis = 0.8,             # 刻度字体大小    ylim = c(0, current_max),      # 设置范围
-    yTicksAt = c(0, max_values[i]),  # 关键：只在 0 和 最大值 处画刻度线
+    # --- Independent Y-axis settings ---
+    ylim = c(0, max_values[i]), # key: use the preset i-th upper limit
+    showAxis = TRUE,            # show Y-axis ticks
+    col.axis = "black",         # tick color
+    cex.axis = 0.8,             # tick label font size    ylim = c(0, current_max),      # set the range
+    yTicksAt = c(0, max_values[i]),  # key: draw tick marks only at 0 and the maximum
 
-    fill.mountain = c(track_colors[i], track_colors[i]), # 填充颜色
-    col.mountain = track_colors[i],                      # 描边颜色
-    background.title = "white",    # 标签背景色设为白色
-    col.axis = "black",            # 坐标轴颜色
-    col.title = "black",           # 标签文字颜色
-    fontface.title = 2,            # 标签加粗
-    cex.title = 0,               # 标签大小
-    alpha = 0.8,                   # 半透明度，增加高级感
-    lwd = 1.5                        # 线条宽度
+    fill.mountain = c(track_colors[i], track_colors[i]), # fill color
+    col.mountain = track_colors[i],                      # border color
+    background.title = "white",    # set the label background to white
+    col.axis = "black",            # axis color
+    col.title = "black",           # label text color
+    fontface.title = 2,            # bold label
+    cex.title = 0,               # label size
+    alpha = 0.8,                   # semi-transparency for a more refined look
+    lwd = 1.5                        # line width
   )
 
 }
 
 txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
 
-# 创建基因轨道 (Gene Track)
-# 这一步不需要联网，速度极快且不会报错
+# Create the gene track (Gene Track)
+# This step requires no internet connection and is extremely fast and error-free
 biomTrack <- GeneRegionTrack(
   txdb,
   genome = "hg19",
@@ -111,28 +111,28 @@ biomTrack <- GeneRegionTrack(
   end = end_pos,
   name = "Gene",
   
-  # --- 视觉美化 ---
-  transcriptAnnotation = "symbol", # 显示基因名字 (如 MYC)
-  collapseTranscripts = "longest",  # 只显示最长的转录本，防止轨道太乱
-  shape = "arrow",                  # 基因方向用箭头表示
-  fill = "#475569",                 # 莫兰迪深灰色，比纯黑高级
-  col = "transparent",              # 隐藏边框
+  # --- Visual polish ---
+  transcriptAnnotation = "symbol", # display gene names (e.g. MYC)
+  collapseTranscripts = "longest",  # show only the longest transcript to keep the track uncluttered
+  shape = "arrow",                  # indicate gene orientation with arrows
+  fill = "#475569",                 # Morandi dark gray, more refined than pure black
+  col = "transparent",              # hide the border
   background.title = "white",
   col.title = "black",
   fontface.title = 2,
   cex.title = 0.7,
-  size = 0.5                        # 调整这个轨道的高度比例
+  size = 0.5                        # adjust the height ratio of this track
 )
 
 
 # ==========================================
-# 3. 绘图与导出
+# 3. Plotting and export
 # ==========================================
 
-# 组合所有轨道
+# Combine all tracks
 all_tracks <- c(axisTrack, data_tracks, biomTrack)
 
-# 导出为 PDF (适合后续在 AI 中进一步美化)
+# Export as PDF (convenient for further polishing in AI)
 pdf("outplots/fig1.a_Epigenome_Tracks.pdf", width = 8, height = 6)
 
 plotTracks(
@@ -142,28 +142,28 @@ plotTracks(
   showTitle = FALSE,
   chromosome = chr,
   transcriptAnnotation = "symbol",
-  window = -1,           # 自动平滑
+  window = -1,           # automatic smoothing
   cex.main = 1.2,
-  margin = 40,           # 留白
+  margin = 40,           # white space
   innerMargin = 5,
-  title.width = 1.5      # 左侧标签栏宽度
+  title.width = 1.5      # width of the left label column
 )
 
 dev.off()
 
 # ==========================================
-# 4. 二值化对应网格图
+# 4. Corresponding binarized grid map
 # ==========================================
 
 peak <- paste0("chr19:33853000:33859000")
-# 提取原始二值化矩阵
+# Extract the raw binarized matrix
 peak_tab <- msc.all[BedInter(peak,msc.all),4:11] %>% t()
 library(ggplot2)
 library(tidyr)
 library(dplyr)
 
-# 1. 准备数据 (假设你的矩阵叫 peak_tab)
-# 显式指定你的轨道顺序（从上到下）
+# 1. Prepare the data (assuming your matrix is called peak_tab)
+# Explicitly specify your track order (top to bottom)
 target_order <- c("H3K27me3","DNase", "H3K27ac", "H3K4me1", "H3K4me3", "H3K9ac", 
                   "H3K36me3", "H3K9me3")
 
@@ -172,53 +172,53 @@ peak_df <- read.table(file = "output/fig1.all.k27.bw/fig1.d0.tab.tsv")
 colnames(peak_df) <- colnames(peak_tab)
 peak_df$Track <- rownames(peak_tab)
 
-# 2. 转换为长格式并处理顺序
+# 2. Convert to long format and handle the ordering
 plot_data <- peak_df %>%
   pivot_longer(cols = -Track, names_to = "Position", values_to = "Value") %>%
   mutate(Position = as.numeric(Position)) %>%
-  # 关键点 1：通过 factor 及其 levels 强制控制从上到下的顺序
-  # rev() 是因为 ggplot 的 Y 轴坐标系是从下往上画的，rev 保证第一个在最上面
+  # Key point 1: force the top-to-bottom order through factor and its levels
+  # rev() is needed because ggplot draws the Y axis from bottom to top; rev keeps the first item at the top
   mutate(Track = factor(Track, levels = rev(target_order))) %>%
   filter(Value == 1)
 
-# 3. 定义颜色 (与之前保持一致)
+# 3. Define colors (kept consistent with the previous section)
 track_colors <- c(
-  "DNase" = "#94a3b8", # DNase (中性灰)
-  "H3K27ac" = "#f87171", # H3K27ac (珊瑚红)
-  "H3K4me1" = "#4ade80", # H3K4me1 (嫩绿)
-  "H3K4me3" = "#fbbf24", # H3K4me3 (金黄)
-  "H3K9ac" = "#fb923c", # H3K9ac (橙色)
-  "H3K36me3" = "#0d9488", # H3K36me3 (青色)
-  "H3K27me3" = "#60a5fa", # H3K27me3 (天蓝)
-  "H3K9me3" = "#818cf8"  # H3K9me3 (淡紫)
+  "DNase" = "#94a3b8", # DNase (neutral gray)
+  "H3K27ac" = "#f87171", # H3K27ac (coral red)
+  "H3K4me1" = "#4ade80", # H3K4me1 (fresh green)
+  "H3K4me3" = "#fbbf24", # H3K4me3 (golden yellow)
+  "H3K9ac" = "#fb923c", # H3K9ac (orange)
+  "H3K36me3" = "#0d9488", # H3K36me3 (teal)
+  "H3K27me3" = "#60a5fa", # H3K27me3 (sky blue)
+  "H3K9me3" = "#818cf8"  # H3K9me3 (light purple)
 )
 
-# 4. 绘图
+# 4. Plot
 p <- ggplot(plot_data, aes(x = Position, y = Track, fill = Track)) +
-  # 关键点 2 & 4：
-  # height = 1 确保行与行之间没有空隙
-  # color = "lightgray" 加上浅灰色内部框线
-  # size = 0.1 设置框线非常细，避免遮挡颜色
+  # Key points 2 & 4:
+  # height = 1 ensures there are no gaps between rows
+  # color = "lightgray" adds light gray inner border lines
+  # size = 0.1 makes the border lines very thin so they do not obscure the colors
   geom_tile(height = 1, color = "#e5e7eb", size = 0.1) + 
   
-  # 设置填充颜色
+  # Set the fill colors
   scale_fill_manual(values = track_colors) +
   
-  # 关键点 3：没有任何文字标注
-  theme_void() + # theme_void 会移除所有坐标轴、背景、文字
+  # Key point 3: no text labels at all
+  theme_void() + # theme_void removes all axes, the background and text
   theme(
     legend.position = "none",
-    # 如果需要保留最外层的一点边距以便对齐，可以取消下面注释
+    # If you need to keep a small outer margin for alignment, uncomment the line below
     # plot.margin = margin(0, 0, 0, 0) 
   ) +
   
-  # 保持 X 轴范围与波峰图完全一致
+  # Keep the X-axis range exactly consistent with the peak plot
   scale_x_continuous(expand = c(0, 0)) +
-  # 保持 Y 轴紧凑，不留白
+  # Keep the Y axis compact with no extra white space
   scale_y_discrete(expand = c(0, 0))
 
-# 5. 输出
-# 建议通过指定宽高来控制最终形状
+# 5. Output
+# It is recommended to control the final shape by specifying the width and height
 print(p)
 ggsave("outplots/fig1/fig1.a_peak_grid_map.d0.pdf", p, width = 7, height = 7)
 
@@ -226,14 +226,14 @@ ggsave("outplots/fig1/fig1.a_peak_grid_map.d0.pdf", p, width = 7, height = 7)
 
 {
 peak <- paste0("chr19:33853000:33859000")
-# 提取原始二值化矩阵
+# Extract the raw binarized matrix
 peak_tab <- adi_7d.all[BedInter(peak,msc.all),4:11] %>% t()
 library(ggplot2)
 library(tidyr)
 library(dplyr)
 
-# 1. 准备数据 (假设你的矩阵叫 peak_tab)
-# 显式指定你的轨道顺序（从上到下）
+# 1. Prepare the data (assuming your matrix is called peak_tab)
+# Explicitly specify your track order (top to bottom)
 target_order <- c("H3K27me3","DNase", "H3K27ac", "H3K4me1", "H3K4me3", "H3K9ac", 
                   "H3K36me3",  "H3K9me3")
 
@@ -242,53 +242,53 @@ peak_df <- read.table(file = "output/fig1.all.k27.bw/fig1.d7.tab.tsv")
 colnames(peak_df) <- colnames(peak_tab)
 peak_df$Track <- rownames(peak_tab)
 
-# 2. 转换为长格式并处理顺序
+# 2. Convert to long format and handle the ordering
 plot_data <- peak_df %>%
   pivot_longer(cols = -Track, names_to = "Position", values_to = "Value") %>%
   mutate(Position = as.numeric(Position)) %>%
-  # 关键点 1：通过 factor 及其 levels 强制控制从上到下的顺序
-  # rev() 是因为 ggplot 的 Y 轴坐标系是从下往上画的，rev 保证第一个在最上面
+  # Key point 1: force the top-to-bottom order through factor and its levels
+  # rev() is needed because ggplot draws the Y axis from bottom to top; rev keeps the first item at the top
   mutate(Track = factor(Track, levels = rev(target_order))) %>%
   filter(Value == 1)
 
-# 3. 定义颜色 (与之前保持一致)
+# 3. Define colors (kept consistent with the previous section)
 track_colors <- c(
-  "DNase" = "#94a3b8", # DNase (中性灰)
-  "H3K27ac" = "#f87171", # H3K27ac (珊瑚红)
-  "H3K4me1" = "#4ade80", # H3K4me1 (嫩绿)
-  "H3K4me3" = "#fbbf24", # H3K4me3 (金黄)
-  "H3K9ac" = "#fb923c", # H3K9ac (橙色)
-  "H3K36me3" = "#0d9488", # H3K36me3 (青色)
-  "H3K27me3" = "#60a5fa", # H3K27me3 (天蓝)
-  "H3K9me3" = "#818cf8"  # H3K9me3 (淡紫)
+  "DNase" = "#94a3b8", # DNase (neutral gray)
+  "H3K27ac" = "#f87171", # H3K27ac (coral red)
+  "H3K4me1" = "#4ade80", # H3K4me1 (fresh green)
+  "H3K4me3" = "#fbbf24", # H3K4me3 (golden yellow)
+  "H3K9ac" = "#fb923c", # H3K9ac (orange)
+  "H3K36me3" = "#0d9488", # H3K36me3 (teal)
+  "H3K27me3" = "#60a5fa", # H3K27me3 (sky blue)
+  "H3K9me3" = "#818cf8"  # H3K9me3 (light purple)
 )
 
-# 4. 绘图
+# 4. Plot
 p <- ggplot(plot_data, aes(x = Position, y = Track, fill = Track)) +
-  # 关键点 2 & 4：
-  # height = 1 确保行与行之间没有空隙
-  # color = "lightgray" 加上浅灰色内部框线
-  # size = 0.1 设置框线非常细，避免遮挡颜色
+  # Key points 2 & 4:
+  # height = 1 ensures there are no gaps between rows
+  # color = "lightgray" adds light gray inner border lines
+  # size = 0.1 makes the border lines very thin so they do not obscure the colors
   geom_tile(height = 1, color = "#e5e7eb", size = 0.1) + 
   
-  # 设置填充颜色
+  # Set the fill colors
   scale_fill_manual(values = track_colors) +
   
-  # 关键点 3：没有任何文字标注
-  theme_void() + # theme_void 会移除所有坐标轴、背景、文字
+  # Key point 3: no text labels at all
+  theme_void() + # theme_void removes all axes, the background and text
   theme(
     legend.position = "none",
-    # 如果需要保留最外层的一点边距以便对齐，可以取消下面注释
+    # If you need to keep a small outer margin for alignment, uncomment the line below
     # plot.margin = margin(0, 0, 0, 0) 
   ) +
   
-  # 保持 X 轴范围与波峰图完全一致
+  # Keep the X-axis range exactly consistent with the peak plot
   scale_x_continuous(expand = c(0, 0)) +
-  # 保持 Y 轴紧凑，不留白
+  # Keep the Y axis compact with no extra white space
   scale_y_discrete(expand = c(0, 0))
 
-# 5. 输出
-# 建议通过指定宽高来控制最终形状
+# 5. Output
+# It is recommended to control the final shape by specifying the width and height
 print(p)
 ggsave("outplots/fig1/fig1.a_peak_grid_map.d7.pdf", p, width = 7, height = 7)
 }
@@ -296,65 +296,65 @@ ggsave("outplots/fig1/fig1.a_peak_grid_map.d7.pdf", p, width = 7, height = 7)
 
 {
 peak <- paste0("chr19:33853000:33859000")
-# 提取原始二值化矩阵
+# Extract the raw binarized matrix
 peak_tab <- adi_15d.all[BedInter(peak,msc.all),4:11] %>% t()
 peak_df <- read.table(file = "output/fig1.all.k27.bw/fig1.d15.tab.tsv")
 colnames(peak_df) <- colnames(peak_tab)
 peak_df$Track <- rownames(peak_tab)
 
-# 1. 准备数据 (假设你的矩阵叫 peak_tab)
-# 显式指定你的轨道顺序（从上到下）
+# 1. Prepare the data (assuming your matrix is called peak_tab)
+# Explicitly specify your track order (top to bottom)
 target_order <- c("H3K27me3", "DNase", "H3K27ac", "H3K4me1", "H3K4me3", "H3K9ac", 
                   "H3K36me3", "H3K9me3")
 
 
-# 2. 转换为长格式并处理顺序
+# 2. Convert to long format and handle the ordering
 plot_data <- peak_df %>%
   pivot_longer(cols = -Track, names_to = "Position", values_to = "Value") %>%
   mutate(Position = as.numeric(Position)) %>%
-  # 关键点 1：通过 factor 及其 levels 强制控制从上到下的顺序
-  # rev() 是因为 ggplot 的 Y 轴坐标系是从下往上画的，rev 保证第一个在最上面
+  # Key point 1: force the top-to-bottom order through factor and its levels
+  # rev() is needed because ggplot draws the Y axis from bottom to top; rev keeps the first item at the top
   mutate(Track = factor(Track, levels = rev(target_order))) %>%
   filter(Value == 1)
 
-# 3. 定义颜色 (与之前保持一致)
+# 3. Define colors (kept consistent with the previous section)
 track_colors <- c(
-  "DNase" = "#94a3b8", # DNase (中性灰)
-  "H3K27ac" = "#f87171", # H3K27ac (珊瑚红)
-  "H3K4me1" = "#4ade80", # H3K4me1 (嫩绿)
-  "H3K4me3" = "#fbbf24", # H3K4me3 (金黄)
-  "H3K9ac" = "#fb923c", # H3K9ac (橙色)
-  "H3K36me3" = "#0d9488", # H3K36me3 (青色)
-  "H3K27me3" = "#60a5fa", # H3K27me3 (天蓝)
-  "H3K9me3" = "#818cf8"  # H3K9me3 (淡紫)
+  "DNase" = "#94a3b8", # DNase (neutral gray)
+  "H3K27ac" = "#f87171", # H3K27ac (coral red)
+  "H3K4me1" = "#4ade80", # H3K4me1 (fresh green)
+  "H3K4me3" = "#fbbf24", # H3K4me3 (golden yellow)
+  "H3K9ac" = "#fb923c", # H3K9ac (orange)
+  "H3K36me3" = "#0d9488", # H3K36me3 (teal)
+  "H3K27me3" = "#60a5fa", # H3K27me3 (sky blue)
+  "H3K9me3" = "#818cf8"  # H3K9me3 (light purple)
 )
 
-# 4. 绘图
+# 4. Plot
 p <- ggplot(plot_data, aes(x = Position, y = Track, fill = Track)) +
-  # 关键点 2 & 4：
-  # height = 1 确保行与行之间没有空隙
-  # color = "lightgray" 加上浅灰色内部框线
-  # size = 0.1 设置框线非常细，避免遮挡颜色
+  # Key points 2 & 4:
+  # height = 1 ensures there are no gaps between rows
+  # color = "lightgray" adds light gray inner border lines
+  # size = 0.1 makes the border lines very thin so they do not obscure the colors
   geom_tile(height = 1, color = "#e5e7eb", size = 0.1) + 
   
-  # 设置填充颜色
+  # Set the fill colors
   scale_fill_manual(values = track_colors) +
   
-  # 关键点 3：没有任何文字标注
-  theme_void() + # theme_void 会移除所有坐标轴、背景、文字
+  # Key point 3: no text labels at all
+  theme_void() + # theme_void removes all axes, the background and text
   theme(
     legend.position = "none",
-    # 如果需要保留最外层的一点边距以便对齐，可以取消下面注释
+    # If you need to keep a small outer margin for alignment, uncomment the line below
     # plot.margin = margin(0, 0, 0, 0) 
   ) +
   
-  # 保持 X 轴范围与波峰图完全一致
+  # Keep the X-axis range exactly consistent with the peak plot
   scale_x_continuous(expand = c(0, 0)) +
-  # 保持 Y 轴紧凑，不留白
+  # Keep the Y axis compact with no extra white space
   scale_y_discrete(expand = c(0, 0))
 
-# 5. 输出
-# 建议通过指定宽高来控制最终形状
+# 5. Output
+# It is recommended to control the final shape by specifying the width and height
 print(p)
 ggsave("outplots/fig1/fig1.a_peak_grid_map.d14.pdf", p, width = 7, height = 7)
 }
@@ -368,7 +368,7 @@ plot_data$Value <- as.integer(plot_data$Value)
 
 
 # ====================================================
-## b. 各个时间点所有连续区域的平均读数与长度的关系
+## b. Relationship between the mean read count and the length of all contiguous regions at each time point
 
 ```{r}
 msc.k27.all <- k27.env$msc.k27.all
@@ -384,7 +384,7 @@ write.table(out2,file = "output/adi_7d.k27.all.bed",row.names = F,col.names = F,
 write.table(out3,file = "output/adi_15d.k27.all.bed",row.names = F,col.names = F,sep = "\t",quote = F)
 
 
-## 另外还需要把非连续的即独立的读数为1的放进来：
+## In addition, the non-contiguous i.e. isolated regions with a read count of 1 also need to be included:
 l1 <- msc.all[msc.all$H3K27me3 == 1,1:3]
 msc.inde.k27 <- bt.intersect(a=l1,b=msc.k27.all,v=T)
 msc.inde.k27$name <- paste0(msc.inde.k27[,1],":",msc.inde.k27[,2],":",msc.inde.k27[,3])
@@ -399,20 +399,20 @@ adi_15d.inde.k27$name <- paste0(adi_15d.inde.k27[,1],":",adi_15d.inde.k27[,2],":
 write.table(adi_15d.inde.k27,file = "output/fig1.all.k27.bw/adi_15d.inde.k27.bed",row.names = F,col.names = F,sep = "\t",quote = F)
 
 
-## 下面开始比较，先简单比较MSC的
+## The comparison starts below; first a simple comparison for MSC
 msc.inde.k27.bw <- read.table(file = "output/fig1.all.k27.bw/msc.inde.k27.out.tab")
 msc.k27.all.bw <- read.table(file = "output/fig1.all.k27.bw/msc.k27.all.out.tab")
 
 boxplot(log2(msc.inde.k27.bw$V5+1),log2(msc.k27.all.bw$V5+1))
-## 存在连续区域的肯定要比单个的显著高
+## Regions in contiguous stretches are certainly significantly higher than isolated ones
 msc.all.bw <- rbind(msc.inde.k27.bw,msc.k27.all.bw)
 plot(msc.all.bw[,2]/200,log2(msc.all.bw$V5+1))
 cor.test(msc.all.bw[,2]/200,log2(msc.all.bw$V5+1))
 lm(data.frame(x=msc.all.bw[,2]/200,y=log2(msc.all.bw$V5+1))) %>% summary()
-## 有比较显著的正相关性,三时间均要进行图像表示
+## There is a fairly significant positive correlation, so plots are needed for all three time points
 
 
-## 按长度讨论信号强度与长度的箱线图
+## Boxplot of signal strength versus length, grouped by length
 msc.all.bw$len <- msc.all.bw$V2/200
 msc.all.bw$V5 <- log2(msc.all.bw$V5+1)
 
@@ -425,7 +425,7 @@ adi_7d.inde.k27.bw <- read.table(file = "output/fig1.all.k27.bw/adi_7d.inde.k27.
 adi_7d.k27.all.bw <- read.table(file = "output/fig1.all.k27.bw/adi_7d.k27.all.out.tab")
 
 boxplot(log2(adi_7d.inde.k27.bw$V5+1),log2(adi_7d.k27.all.bw$V5+1))
-## 存在连续区域的肯定要比单个的显著高
+## Regions in contiguous stretches are certainly significantly higher than isolated ones
 adi_7d.all.bw <- rbind(adi_7d.inde.k27.bw,adi_7d.k27.all.bw)
 plot(adi_7d.all.bw[,2]/200,log2(adi_7d.all.bw$V5+1))
 cor.test(adi_7d.all.bw[,2]/200,log2(adi_7d.all.bw$V5+1))
@@ -444,7 +444,7 @@ adi_15d.inde.k27.bw <- read.table(file = "output/fig1.all.k27.bw/adi_15d.inde.k2
 adi_15d.k27.all.bw <- read.table(file = "output/fig1.all.k27.bw/adi_15d.k27.all.out.tab")
 
 boxplot(log2(adi_15d.inde.k27.bw$V5+1),log2(adi_15d.k27.all.bw$V5+1))
-## 存在连续区域的肯定要比单个的显著高
+## Regions in contiguous stretches are certainly significantly higher than isolated ones
 adi_15d.all.bw <- rbind(adi_15d.inde.k27.bw,adi_15d.k27.all.bw)
 plot(adi_15d.all.bw[,2]/200,log2(adi_15d.all.bw$V5+1))
 cor.test(adi_15d.all.bw[,2]/200,log2(adi_15d.all.bw$V5+1))
@@ -461,10 +461,10 @@ library(dplyr)
 ## =========================
 ## Parameters you may tweak
 ## =========================
-COL <- "#0072B2"        # firebrick red,论文常用的深红
-k_extreme <- 5          # IQR倍数：越大越“只去极端少数点”。常见1.5；这里用5更像“去四五个特别离谱的”
-seed <- 1               # 用于散点抽样可复现
-max_points_to_show <- 1e+8  # 散点图最多展示多少个点（拟合仍用全量去极端后的数据）
+COL <- "#0072B2"        # firebrick red, a deep red commonly used in papers
+k_extreme <- 5          # IQR multiplier: the larger it is, the more only the "extreme few" points are removed. 1.5 is common; 5 here is closer to removing only the "handful of most extreme" points
+seed <- 1               # for reproducible scatter downsampling
+max_points_to_show <- 1e+8  # maximum number of points shown in the scatter plot (fitting still uses all data after extreme-value removal)
 
 stopifnot(all(c("len","V5") %in% colnames(msc.all.bw)))
 
@@ -599,7 +599,7 @@ p2 <- ggplot(df, aes(x = len, y = V5)) +
   scattermore::geom_scattermore(
     data = df_points,
     color = COL,
-    #alpha = 0.8,   # 更透明
+    #alpha = 0.8,   # more transparent
     pointsize = 3,
     pixels = c(1000,1000)
   ) +
@@ -768,7 +768,7 @@ p2 <- ggplot(df, aes(x = len, y = V5)) +
   scattermore::geom_scattermore(
     data = df_points,
     color = COL,
-    #alpha = 0.8,   # 更透明
+    #alpha = 0.8,   # more transparent
     pointsize = 3,
     pixels = c(1000,1000)
   ) +
@@ -933,7 +933,7 @@ p2 <- ggplot(df, aes(x = len, y = V5)) +
   scattermore::geom_scattermore(
     data = df_points,
     color = COL,
-    #alpha = 0.8,   # 更透明
+    #alpha = 0.8,   # more transparent
     pointsize = 3,
     pixels = c(1000,1000)
   )  +
@@ -973,26 +973,26 @@ ggsave("outplots/fig1/fig1_b.H3K27me3.signal&length.boxplot&scatter.d14.pdf",p,w
 
 
 
-# b. 确定长度length = 7作为ROIs
-# 顺序是：
-1. 各长度对应数量展示；
-2. 敏感性分析：对 cutoff = 5, 6, 7, 8, 9, 10，分别统计：
-    ROI 数量
-    ROI 平均长度
-    ROI 覆盖的基因组比例
-    每个 ROI 平均/中位 H3K27me3 信号
-    靶基因表达水平
-    与 control 区域相比的表达差异
+# b. Choosing length = 7 as the ROIs
+# The order is:
+1. Show the count for each length;
+2. Sensitivity analysis: for cutoff = 5, 6, 7, 8, 9, 10, compute separately:
+    ROI count
+    mean ROI length
+    fraction of the genome covered by ROIs
+    ROI mean/median H3K27me3 signal
+    target gene expression level
+    expression difference compared with control regions
 
-# 长度与对应数量分布情况
-# 这部分有三个图，两个附图分别展示连接数量以及连接对应H3K27me3信号对比l==1和背景信号强弱
-# 主图展示各长度与信号强度的相关性分析
+# Distribution of length versus count
+# This part has three figures; the two supplementary figures show the number of connections and the H3K27me3 signal of the connections compared with l == 1 and with the strength of the background signal
+# The main figure shows the correlation analysis between length and signal strength
 ```{r}
 
 
 
-# 敏感性分析：在阈值为top30，top20，top10和top5对应的l>=4, l>=5, l>=7, l>=9的情况下靶基因表达的差异性，是否均低于control以及各组间表达差异性、
-# 另有不同阈值下ROIs的数量，对应基因组覆盖度，对应靶基因的数量这几个信息，以此说明不同阈值下其实差异不大，均有抑制效果，但靶基因表达是扎实的降低的
+# Sensitivity analysis: at thresholds top30, top20, top10 and top5 with the corresponding l>=4, l>=5, l>=7, l>=9, whether target gene expression differs and is lower than control in all cases, and the expression differences between groups
+# Also the number of ROIs, the corresponding genome coverage and the corresponding number of target genes at different thresholds, showing that the differences between thresholds are in fact small and that all of them are repressive, while target gene expression is robustly reduced
 
 
 
@@ -1008,9 +1008,9 @@ hist(log2(k27.env$adi.7d.k27.all$len+1))
 
 library(ggplot2)
 
-# 1. 模拟/整理数据 (请根据你的实际变量名替换)
-# 假设你的三个样本数据分别叫 data1, data2, data3
-# 这里演示如何将它们合并成 ggplot 需要的“长格式”
+# 1. Simulate/organize the data (replace with your actual variable names)
+# Assume your three sample datasets are called data1, data2, data3
+# This demonstrates how to merge them into the "long format" required by ggplot
 df1 <- data.frame(val = k27.env$msc.k27.all[k27.env$msc.k27.all$len >1,"len"], group = "MSC")
 df2 <- data.frame(val = k27.env$adi_7d.k27.all[k27.env$adi_7d.k27.all$len >1,"len"], group = "ADI 7d")
 df3 <- data.frame(val = k27.env$adi_15d.k27.all[k27.env$adi_15d.k27.all$len >1,"len"], group = "ADI 14d")
@@ -1020,38 +1020,38 @@ plot_data$group <- factor(plot_data$group,levels=c("MSC","ADI 7d","ADI 14d"))
 kruskal.test(val ~ group, data = plot_data)
 rstatix::kruskal_effsize(val ~ group, data = plot_data)
 
-## 尽管 Kruskal-Wallis 检验显示三组之间存在统计学显著差异（p < 2.2e-16) ,但这主要是由于样本量巨大 (n = 769,644) 导致的。效应量分析显示η2 = 0.00086(极小量级), 表明三者的长度分布在生物学意义上表现出高度的一致性。
+## Although the Kruskal-Wallis test shows a statistically significant difference among the three groups (p < 2.2e-16), this is mainly caused by the very large sample size (n = 769,644). The effect size analysis gives η2 = 0.00086 (a very small magnitude), indicating that the length distributions of the three are biologically highly consistent.
 
 
-# 2. 绘制美化后的密度曲线
+# 2. Draw the polished density curve
 library(ggplot2)
 
-# 1. 构造演示数据 (请替换为你自己的 log2 转换后的数据)
-# 假设你的数据已经整合到了一个名为 plot_data 的长格式数据框中
-# 如果没有，请参考上一次回复中的 rbind 步骤
+# 1. Construct demo data (replace with your own log2-transformed data)
+# Assume your data have already been combined into a long-format data frame called plot_data
+# If not, refer to the rbind step in the previous reply
 
-# 2. 绘图
+# 2. Plot
 ggplot(plot_data, aes(x = val, fill = group, color = group)) +
-  # 第一层：绘制直方图（负责浅色填充）
-  # position = "identity" 表示重叠放置，而不是堆叠
-  # alpha 设置为较细的透明度
+  # First layer: draw the histogram (provides the light-colored fill)
+  # position = "identity" means overlapping placement rather than stacking
+  # alpha is set to a light transparency
   geom_histogram(aes(y = ..count..), 
                  position = "identity", 
                  alpha = 0.2, 
-                 binwidth = 0.5, # 根据你的数据间距调整 binwidth
-                 color = NA) +   # 这一层不要边框线
+                 binwidth = 0.5, # adjust binwidth according to the spacing of your data
+                 color = NA) +   # this layer should have no border lines
   
-  # 第二层：绘制频率多边形（负责那条很粗的曲线）
-  # 这条线会连接每个频数点的中心
+  # Second layer: draw the frequency polygon (provides the thick curve)
+  # This line connects the centers of the frequency points
   geom_freqpoly(aes(y = ..count..), 
                 linewidth = 1.5, 
                 binwidth = 0.5) + 
   
-  # 颜色设置
+  # Color settings
   scale_fill_brewer(palette = "Set1") +
   scale_color_brewer(palette = "Set1") +
   
-  # 界面美化
+  # Visual polish
   theme_minimal(base_size = 15) +
   theme(
     panel.grid.minor = element_blank(),
@@ -1068,51 +1068,51 @@ ggplot(plot_data, aes(x = val, fill = group, color = group)) +
 
 
 library(ggplot2)
-library(scales) # 需要这个包来处理刻度标签
+library(scales) # this package is needed to handle tick labels
 
-# 假设你的原始数据列叫 len (真实的长度)
-# 如果你只有 log2 后的数据，请先还原：plot_data$len <- 2^(plot_data$val)
+# Assume your raw data column is called len (the true length)
+# If you only have log2-transformed data, restore it first: plot_data$len <- 2^(plot_data$val)
 
 p <- ggplot(plot_data, aes(x = val, color = group)) +
-  # 1. 绘制累积分布曲线 (ECDF)
+  # 1. Draw the cumulative distribution curve (ECDF)
   stat_ecdf(linewidth = 1, alpha = 0.8) + 
   
-  # 2. 核心设置：将 X 轴设为 log2 转换，但显示原始数值
-  # 我们手动指定想要强调的长度：2, 4, 8, 16, 32, 64, 128, 256, 512, 1024
+  # 2. Key setting: use an X axis with log2 transformation but display the original values
+  # Manually specify the lengths to highlight: 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024
   scale_x_continuous(
     trans = "log2", 
     breaks = c(2, 4, 8, 16, 32, 64, 128, 256, 512, 1024), 
     labels = c("2", "4", "8", "16", "32", "64", "128", "256", "512", "1024")
   ) +
   
-  # 3. 添加 y = 0.9 的参考虚线
+  # 3. Add a dashed reference line at y = 0.9
   geom_hline(yintercept = 0.9, linetype = "dashed", color = "gray40", linewidth = 0.8) +
   geom_vline(xintercept = 6, linetype = "dashed", color = "black", linewidth = 0.8) +
   
-  # 4. 颜色与主题
-  scale_color_manual(values = c("#0072B2", "#E69F00" , "#CC79A7")) + # 经典的 Set1 颜色
+  # 4. Colors and theme
+  scale_color_manual(values = c("#0072B2", "#E69F00" , "#CC79A7")) + # classic Set1 colors
   theme_bw(base_size = 16) +
   theme(
     panel.grid.minor = element_blank(),
     axis.line = element_line(color = "black"),
     legend.position = "none",
     legend.title = element_blank(),
-    axis.text= element_text(color="black") # 标签倾斜，防止重叠
+    axis.text= element_text(color="black") # tilt the labels to prevent overlap
   ) +
   
-  # 5. 标签设置
+  # 5. Label settings
   labs(
     x = "Length (l)", 
     y = "Cumulative Probability"
   ) +
   
-  # 6. Y 轴范围优化
+  # 6. Y-axis range optimization
   scale_y_continuous(breaks = seq(0, 1, 0.1), expand = c(0.01, 0.01))
 
 ggsave(file = "outplots/fig1/sup1_a.cumulative.pdf",p,width=4,height=5,dpi=300)
 
 # ==========================================
-# 主图fig1.c绘制CRRs的定义标准连带数量
+# Main figure fig1.c: the definition criterion of CRRs together with the counts
 # ==========================================
 
 
@@ -1120,50 +1120,50 @@ df <- k27.env$msc.k27.all
 
 library(ggplot2)
 
-# 提取数据
+# Extract the data
 df <- k27.env$msc.k27.all
 
 p1 <- ggplot(df, aes(x = len)) +
-  # 绘制柱状图
+  # Draw the bar chart
   geom_bar(fill = "#0072B2", color = "white", alpha = 0.8) +
   
-  # 在 x = 7 处绘制虚线
+  # Draw a dashed line at x = 7
   geom_vline(xintercept = 7, linetype = "dashed", color = "red", size = 0.8) +
   
-  # 关键设置：
-  # 1. limits 设定范围从 2 到 20
-  # 2. expand = c(0, 0) 强制图像紧贴轴线，不留空白
-  # 3. breaks 设置刻度点
+  # Key settings:
+  # 1. limits sets the range from 2 to 20
+  # 2. expand = c(0, 0) forces the plot to hug the axis with no blank space
+  # 3. breaks sets the tick positions
   scale_x_continuous(
     limits = c(1.5, 20.5), 
     #breaks = 2:20, 
     expand = c(0, 0)
   ) +
   
-  # 同样对 y 轴设置 expand，确保柱子底部紧贴 x 轴
+  # Likewise, for the y axis set expand so that the bottoms of the bars hug the x axis
   scale_y_continuous(
     limits = c(0, 180000),
-    expand = expansion(mult = c(0, 0.05)) # 底部留0，顶部留5%防止最高处到顶
+    expand = expansion(mult = c(0, 0.05)) # 0 at the bottom and 5% at the top so the tallest bar does not touch the edge
   ) +
   
-  # 设置标签
+  # Set the labels
   labs(
     x = "length / bin", 
     y = "Count"
   ) +
   
-  # 使用经典主题
+  # Use the classic theme
   theme_classic(base_size = 12) +
   
-  # 细节微调：确保坐标轴线在 2 的位置对齐
+  # Fine-tuning: make sure the axis line is aligned at position 2
   theme(
     panel.grid.minor = element_blank(),
     axis.line = element_line(color = "black"),
     legend.position = "none",
     legend.title = element_blank(),
     axis.title = element_text(color = "black"),
-    axis.text= element_text(color="black"), # 标签倾斜，防止重叠
-    plot.margin = margin(10, 20, 10, 10) # 适当增加边距防止标签显示不全
+    axis.text= element_text(color="black"), # tilt the labels to prevent overlap
+    plot.margin = margin(10, 20, 10, 10) # slightly increase the margins so that labels are not cut off
   )
 ggsave("outplots/fig1/fig1_c.MSC.CRRs.counts.pdf",p1,width = 6,height = 2,dpi = 300)
 
@@ -1171,46 +1171,46 @@ ggsave("outplots/fig1/fig1_c.MSC.CRRs.counts.pdf",p1,width = 6,height = 2,dpi = 
 df <- k27.env$adi_7d.k27.all
 
 p2 <- ggplot(df, aes(x = len)) +
-  # 绘制柱状图
+  # Draw the bar chart
   geom_bar(fill = "#E69F00", color = "white", alpha = 0.8) +
   
-  # 在 x = 7 处绘制虚线
+  # Draw a dashed line at x = 7
   #geom_vline(xintercept = 7, linetype = "dashed", color = "red", size = 0.8) +
   
-  # 关键设置：
-  # 1. limits 设定范围从 2 到 20
-  # 2. expand = c(0, 0) 强制图像紧贴轴线，不留空白
-  # 3. breaks 设置刻度点
+  # Key settings:
+  # 1. limits sets the range from 2 to 20
+  # 2. expand = c(0, 0) forces the plot to hug the axis with no blank space
+  # 3. breaks sets the tick positions
   scale_x_continuous(
     limits = c(1.5, 20.5), 
     #breaks = 2:20, 
     expand = c(0, 0)
   ) +
   
-  # 同样对 y 轴设置 expand，确保柱子底部紧贴 x 轴
+  # Likewise, for the y axis set expand so that the bottoms of the bars hug the x axis
   scale_y_continuous(
     limits = c(0, 180000),
-    expand = expansion(mult = c(0, 0.05)) # 底部留0，顶部留5%防止最高处到顶
+    expand = expansion(mult = c(0, 0.05)) # 0 at the bottom and 5% at the top so the tallest bar does not touch the edge
   ) +
   
-  # 设置标签
+  # Set the labels
   labs(
     x = "length / bin", 
     y = "Count"
   ) +
   
-  # 使用经典主题
+  # Use the classic theme
   theme_classic(base_size = 12) +
   
-  # 细节微调：确保坐标轴线在 2 的位置对齐
+  # Fine-tuning: make sure the axis line is aligned at position 2
   theme(
     panel.grid.minor = element_blank(),
     axis.line = element_line(color = "black"),
     legend.position = "none",
     legend.title = element_blank(),
     axis.title = element_text(color = "black"),
-    axis.text= element_text(color="black"), # 标签倾斜，防止重叠
-    plot.margin = margin(10, 20, 10, 10) # 适当增加边距防止标签显示不全
+    axis.text= element_text(color="black"), # tilt the labels to prevent overlap
+    plot.margin = margin(10, 20, 10, 10) # slightly increase the margins so that labels are not cut off
   )
 ggsave("outplots/fig1/fig1_c.ADI_7d.CRRs.counts.pdf",p2,width = 6,height = 2,dpi = 300)
 
@@ -1218,56 +1218,56 @@ ggsave("outplots/fig1/fig1_c.ADI_7d.CRRs.counts.pdf",p2,width = 6,height = 2,dpi
 df <- k27.env$adi_15d.k27.all
 
 p3 <- ggplot(df, aes(x = len)) +
-  # 绘制柱状图
+  # Draw the bar chart
   geom_bar(fill = "#CC79A7", color = "white", alpha = 0.8) +
   
-  # 在 x = 7 处绘制虚线
+  # Draw a dashed line at x = 7
   geom_vline(xintercept = 7, linetype = "dashed", color = "red", size = 0.8) +
   
-  # 关键设置：
-  # 1. limits 设定范围从 2 到 20
-  # 2. expand = c(0, 0) 强制图像紧贴轴线，不留空白
-  # 3. breaks 设置刻度点
+  # Key settings:
+  # 1. limits sets the range from 2 to 20
+  # 2. expand = c(0, 0) forces the plot to hug the axis with no blank space
+  # 3. breaks sets the tick positions
   scale_x_continuous(
     limits = c(1.5, 20.5), 
     #breaks = 2:20, 
     expand = c(0, 0)
   ) +
   
-  # 同样对 y 轴设置 expand，确保柱子底部紧贴 x 轴
+  # Likewise, for the y axis set expand so that the bottoms of the bars hug the x axis
   scale_y_continuous(
     limits = c(0, 180000),
-    expand = expansion(mult = c(0, 0.05)) # 底部留0，顶部留5%防止最高处到顶
+    expand = expansion(mult = c(0, 0.05)) # 0 at the bottom and 5% at the top so the tallest bar does not touch the edge
   ) +
   
-  # 设置标签
+  # Set the labels
   labs(
     x = "length / bin", 
     y = "Count"
   ) +
   
-  # 使用经典主题
+  # Use the classic theme
   theme_classic(base_size = 12) +
   
-  # 细节微调：确保坐标轴线在 2 的位置对齐
+  # Fine-tuning: make sure the axis line is aligned at position 2
   theme(
     panel.grid.minor = element_blank(),
     axis.line = element_line(color = "black"),
     legend.position = "none",
     legend.title = element_blank(),
     axis.title = element_text(color = "black"),
-    axis.text= element_text(color="black"), # 标签倾斜，防止重叠
-    plot.margin = margin(10, 20, 10, 10) # 适当增加边距防止标签显示不全
+    axis.text= element_text(color="black"), # tilt the labels to prevent overlap
+    plot.margin = margin(10, 20, 10, 10) # slightly increase the margins so that labels are not cut off
   )
 ggsave("outplots/fig1/fig1_c.ADI_14d.CRRs.counts.pdf",p3,width = 6,height = 2,dpi = 300)
 
 
 
 
-## 绘制对应韦恩图
+## Draw the corresponding Venn diagram
 library(GenomicRanges)
 
-# 这里为了演示，我们创建一些模拟的 GRanges 对象：
+# For demonstration purposes, we create some simulated GRanges objects:
 msc.k27.gr <- GRanges(
   seqnames = k27.env$msc.k27$chr,
   ranges = IRanges(start = k27.env$msc.k27$start, end = k27.env$msc.k27$end)
@@ -1285,19 +1285,19 @@ adi_14d.k27.gr <- GRanges(
 
 
 # ==========================================
-# 2. 构建并集主模板 (Master Regions)
+# 2. Build the union master template (Master Regions)
 # ==========================================
-# 将三个区间的坐标合并，并进行 reduce 融合，得到所有可能存在重叠的非重叠区间集合
+# Merge the coordinates of the three interval sets and reduce them to obtain the set of all non-overlapping intervals in which overlaps may occur
 all_regions <- GenomicRanges::reduce(c(msc.k27.gr, adi_7d.k27.gr, adi_14d.k27.gr))
 
 # ==========================================
-# 3. 统计每个区间在三个样本中的重叠情况
+# 3. Count the overlap of each interval across the three samples
 # ==========================================
 has_msc     <- GenomicRanges::countOverlaps(all_regions, msc.k27.gr) > 0
 has_adi_7d  <- GenomicRanges::countOverlaps(all_regions, adi_7d.k27.gr) > 0
 has_adi_14d <- GenomicRanges::countOverlaps(all_regions, adi_14d.k27.gr) > 0
 
-# 将结果整合为一个 Data Frame
+# Combine the results into a Data Frame
 df_regions <- data.frame(
   chr   = as.character(GenomicRanges::seqnames(all_regions)),
   start = GenomicRanges::start(all_regions),
@@ -1310,59 +1310,59 @@ df_regions <- data.frame(
 
 
 # ==========================================
-# 4. 根据重叠组合进行 7 分类
+# 4. Classify into 7 categories based on the overlap combination
 # ==========================================
-# 定义一个分类标签函数
+# Define a category label function
 get_category <- function(m, a7, a14) {
-  if (m & !a7 & !a14) return("1")       # 仅在 msc.k27
-  if (!m & a7 & !a14) return("2")       # 仅在 adi_7d.k27
-  if (!m & !a7 & a14) return("3")       # 仅在 adi_14d.k27
-  if (m & a7 & !a14)  return("12")      # msc.k27 和 adi_7d.k27 共有
-  if (m & !a7 & a14)  return("13")      # msc.k27 和 adi_14d.k27 共有
-  if (!m & a7 & a14)  return("23")      # adi_7d.k27 和 adi_14d.k27 共有
-  if (m & a7 & a14)   return("123")     # 三者共有
-  return("none")                        # 理论上不会出现 none
+  if (m & !a7 & !a14) return("1")       # only in msc.k27
+  if (!m & a7 & !a14) return("2")       # only in adi_7d.k27
+  if (!m & !a7 & a14) return("3")       # only in adi_14d.k27
+  if (m & a7 & !a14)  return("12")      # shared by msc.k27 and adi_7d.k27
+  if (m & !a7 & a14)  return("13")      # shared by msc.k27 and adi_14d.k27
+  if (!m & a7 & a14)  return("23")      # shared by adi_7d.k27 and adi_14d.k27
+  if (m & a7 & a14)   return("123")     # shared by all three
+  return("none")                        # in theory this should never be none
 }
 
-# 应用分类函数
+# Apply the classification function
 df_regions$category <- mapply(get_category, 
                               df_regions$msc, 
                               df_regions$adi_7d, 
                               df_regions$adi_14d)
 
 # ==========================================
-# 5. 提取 7 种分类下的具体结果
+# 5. Extract the specific results for the 7 categories
 # ==========================================
-# 我们可以将 7 种分类结果分别保存到一个 List 中
+# We can save the 7 category results separately into a list
 results_list <- split(df_regions[, c("chr", "start", "end")], df_regions$category)
 
-# 打印每种分类下的区间数量
-cat("各分类下的区间数量统计：\n")
+# Print the number of intervals in each category
+cat("Interval counts per category:\n")
 print(table(df_regions$category))
 
-# 提取具体的分类结果示例：
-# 比如你想获取三者交集 (123) 的结果：
+# Examples of extracting specific category results:
+# For example, to obtain the result of the three-way intersection (123):
 intersection_123 <- results_list[["123"]]
-print("三者共有 (123) 的区间：")
+print("Intervals shared by all three (123):")
 print(intersection_123)
 
-# 比如你想获取仅在 msc.k27 中存在的 (1) 的结果：
+# For example, to obtain the result of msc.k27-only (1):
 only_msc_1 <- results_list[["1"]]
 
 
-# 2. 定义图片中各部分的“独立切片”数值 (Disjoint counts)
+# 2. Define the "disjoint slice" values for each part of the figure (Disjoint counts)
 msc_only <- 5723
 adi7d_only <- 8928
 adi15d_only <- 5302
 
-msc_adi7d_inter <- 3233   # 仅 MSC 和 ADI-7d 的交集
-msc_adi15d_inter <- 792    # 仅 MSC 和 ADI-15d 的交集
-adi7d_adi15d_inter <- 2790 # 仅 ADI-7d 和 ADI-15d 的交集
+msc_adi7d_inter <- 3233   # MSC and ADI-7d intersection only
+msc_adi15d_inter <- 792    # MSC and ADI-15d intersection only
+adi7d_adi15d_inter <- 2790 # ADI-7d and ADI-15d intersection only
 
-triple_inter <- 3212       # 三者共同交集
+triple_inter <- 3212       # intersection of all three
 
-# 3. 转换为 eulerr 需要的输入格式 (计算各集合的总交集)
-# eulerr 的逻辑是：A&B 表示 A 和 B 的全交集（包含三者交集部分）
+# 3. Convert to the input format required by eulerr (computing the total intersection of each set)
+# The eulerr logic is: A&B denotes the full intersection of A and B (including the three-way intersection part)
 fit_data <- c(
   "MSC" = msc_only + msc_adi7d_inter + msc_adi15d_inter + triple_inter,
   "ADI-7d" = adi7d_only + msc_adi7d_inter + adi7d_adi15d_inter + triple_inter,
@@ -1373,43 +1373,43 @@ fit_data <- c(
   "MSC&ADI-7d&ADI-15d" = triple_inter
 )
 library(eulerr)
-# 4. 拟合模型
+# 4. Fit the model
 fit <- euler(fit_data)
 
-# 5. 绘图
+# 5. Plot
 p <- plot(fit,
-     quantities = list(type = "counts", font = 2, cex = 0.8), # 显示数值，font=2为加粗
-     fills = list(fill = c("#1F77B4", "#2CA02C" , "#D62728"), alpha = 0.7), # 设置颜色和透明度
-     labels = list(col = "black", font = 2, cex = 1.2),      # 设置标签字体
-     edges = list(col = "white", lex = 2),                   # 设置圆圈边界线
-     main = "")                # 标题
+     quantities = list(type = "counts", font = 2, cex = 0.8), # show the values; font=2 means bold
+     fills = list(fill = c("#1F77B4", "#2CA02C" , "#D62728"), alpha = 0.7), # set the colors and transparency
+     labels = list(col = "black", font = 2, cex = 1.2),      # set the label font
+     edges = list(col = "white", lex = 2),                   # set the circle border lines
+     main = "")                # title
 
 ggsave(file = "outplots/fig1/fig1_d.venn.pdf",p,width=4,height=4,dpi=300)
 
 ```
 
 
-# sup1.d Upset图展示类似韦恩图的数量情况
+# sup1.d Upset plot showing counts similar to those of a Venn diagram
 ```{r}
-# 1. 安装并加载包
+# 1. Install and load the package
 # install.packages("UpSetR")
 library(UpSetR)
 
-# 2. 根据你的数据构建输入向量
-# 注意：fromExpression 中的数值代表的是该特定组合的“独有”数量
-# 比如 'MSC' = 5723 指的是只在 MSC 中出现的数量
+# 2. Build the input vector from your data
+# Note: the values in fromExpression represent the "exclusive" count of that specific combination
+# For example, 'MSC' = 5723 means the count that occurs only in MSC
 msc_only <- 5723
 adi7d_only <- 8928
 adi15d_only <- 5302
 
-msc_adi7d_inter <- 3233   # 仅 MSC 和 ADI-7d 的交集
-msc_adi15d_inter <- 792    # 仅 MSC 和 ADI-15d 的交集
-adi7d_adi15d_inter <- 2790 # 仅 ADI-7d 和 ADI-15d 的交集
+msc_adi7d_inter <- 3233   # MSC and ADI-7d intersection only
+msc_adi15d_inter <- 792    # MSC and ADI-15d intersection only
+adi7d_adi15d_inter <- 2790 # ADI-7d and ADI-15d intersection only
 
-triple_inter <- 3212       # 三者共同交集
+triple_inter <- 3212       # intersection of all three
 
-# 3. 转换为 eulerr 需要的输入格式 (计算各集合的总交集)
-# eulerr 的逻辑是：A&B 表示 A 和 B 的全交集（包含三者交集部分）
+# 3. Convert to the input format required by eulerr (computing the total intersection of each set)
+# The eulerr logic is: A&B denotes the full intersection of A and B (including the three-way intersection part)
 input_data <- c(
   "MSC" = msc_only + msc_adi7d_inter + msc_adi15d_inter + triple_inter,
   "ADI-7d" = adi7d_only + msc_adi7d_inter + adi7d_adi15d_inter + triple_inter,
@@ -1421,20 +1421,20 @@ input_data <- c(
 )
 target_order <- c("MSC", "ADI-7d", "ADI-14d")
 
-# 3. 绘制 UpSet 图
+# 3. Draw the UpSet plot
 
 p <- upset(fromExpression(input_data), 
-      sets = target_order,       # 指定显示的集合及其顺序
-      keep.order = TRUE,         # 关键参数：设置为 TRUE 以保持上述指定的顺序
+      sets = target_order,       # specify the sets to display and their order
+      keep.order = TRUE,         # key parameter: set to TRUE to keep the order specified above
       nintersects = NA, 
-      order.by = "freq",         # 上方交集柱状图依然按频率排序
-      mb.ratio = c(0.7, 0.3),  # 调整上方柱状图与下方矩阵的比例
-      main.bar.color = "#696969", # 主柱状图颜色
-      sets.bar.color = c("#1F77B4", "#2CA02C" , "#D62728"), # 左侧集合大小条形图颜色
-      matrix.color = "black",     # 矩阵点的颜色
-      point.size = 3.5,           # 矩阵点的大小
-      line.size = 1,              # 连接线粗细
-      text.scale = c(1.5, 1.2, 1.2, 1.2, 1.5, 1.5) # 依次为：纵轴标签, 纵轴刻度, 横轴标签, 横轴刻度, 集合名称, 柱状图上方数字
+      order.by = "freq",         # the top intersection bar chart is still sorted by frequency
+      mb.ratio = c(0.7, 0.3),  # adjust the ratio between the top bar chart and the bottom matrix
+      main.bar.color = "#696969", # main bar color
+      sets.bar.color = c("#1F77B4", "#2CA02C" , "#D62728"), # color of the left set-size bar chart
+      matrix.color = "black",     # color of the matrix points
+      point.size = 3.5,           # size of the matrix points
+      line.size = 1,              # thickness of the connecting lines
+      text.scale = c(1.5, 1.2, 1.2, 1.2, 1.5, 1.5) # in order: y-axis label, y-axis ticks, x-axis label, x-axis ticks, set names, numbers above the bars
 )
 pdf(file = "outplots/fig1/fig1_d.periods.upset.plot.pdf",width=6,height=6)
 p
@@ -1443,12 +1443,12 @@ dev.off()
 
 
 
-# e. 主图展示不同时期ROIs对应靶基因表达与control，与舍弃的peaks对应靶基因表达存在显著差异
+# e. Main figure showing that the target gene expression of ROIs versus control at different time points is significantly different from that of the discarded peaks
 ```{r}
 load("RNA-seq.Rdata")
 load("gencode.v19.ref.Rdata")
 
-# 先做MRR，peak，ROIs和control四者靶基因的比较图
+# First produce the comparison plot of target genes among MRR, peak, ROIs and control
 # fig1_d.targetGene.tpm.boxplot
 msc.peaks.tg <- fread(file = "peaks/H3K27me3-0d.merged.q0.1_peaks.targetGene.tsv")
 msc.peaks.tpm <- all.tpm[unique(msc.peaks.tg$target_gene_id),] %>% na.omit()
@@ -1464,18 +1464,18 @@ msc.k27.tpm.df <- data.frame(
     log2tpm=c(log2(msc.k27.tpm[,1]+1),log2(msc.MRR.tpm[,1]+1),log2(msc.peaks.tpm[,1]+1),log2(msc.k27.control.tpm[,1]+1))
 )
 
-# 确保顺序是：len < 7, len >= 7, control
+# Make sure the order is: len < 7, len >= 7, control
 msc.k27.tpm.df$category <- factor(msc.k27.tpm.df$category, 
                                   levels = c("ROIs (l >= 7)","H3K27me3 MRRs","H3K27me3 peaks","ROIs' Controls"))
 
 
 p <- ggplot(msc.k27.tpm.df, aes(x = category, y = log2tpm, fill = category)) +
-  # 添加误差线，注意 width 控制横杠宽度，必须放在 geom_boxplot 之前
+  # Add error bars; note that width controls the crossbar width and this layer must be placed before geom_boxplot
   stat_boxplot(geom = "errorbar", width = 0.4) +
-  # 绘制箱线图
-  geom_boxplot(outlier.shape = 21, width = 0.6,color="black") + # outlier.shape = NA 可以隐藏离群点，视需求而定
+  # Draw the boxplot
+  geom_boxplot(outlier.shape = 21, width = 0.6,color="black") + # outlier.shape = NA hides the outlier points, depending on your needs
   scale_fill_manual(values = c("#1F77B4","#5FA2D1","#8EBFDD","#CCCCCC")) +
-  # 美化界面
+  # Visual polish
   theme_classic(base_size = 16) +
   labs(title = "",
        x = "",
@@ -1484,7 +1484,7 @@ p <- ggplot(msc.k27.tpm.df, aes(x = category, y = log2tpm, fill = category)) +
   legend.position = "none",
   axis.text = element_text(color="black"),
   panel.grid.minor = element_blank()
-  ) # 如果不需要图例可以隐藏
+  ) # the legend can be hidden if it is not needed
 ggsave(file = "outplots/fig1/fig1_e.tg.log2tpm.msc.pdf",p,width=6,height=4,dpi=300)
 
 adi_7d.peaks.tg <- fread(file = "peaks/H3K27me3-0d.merged.q0.1_peaks.targetGene.tsv")
@@ -1501,18 +1501,18 @@ adi_7d.k27.tpm.df <- data.frame(
     log2tpm=c(log2(adi_7d.k27.tpm[,1]+1),log2(adi_7d.MRR.tpm[,1]+1),log2(adi_7d.peaks.tpm[,1]+1),log2(adi_7d.k27.control.tpm[,1]+1))
 )
 
-# 确保顺序是：len < 7, len >= 7, control
+# Make sure the order is: len < 7, len >= 7, control
 adi_7d.k27.tpm.df$category <- factor(adi_7d.k27.tpm.df$category, 
                                   levels = c("ROIs (l >= 7)","H3K27me3 MRRs","H3K27me3 peaks","ROIs' Controls"))
 
 
 p <- ggplot(adi_7d.k27.tpm.df, aes(x = category, y = log2tpm, fill = category)) +
-  # 添加误差线，注意 width 控制横杠宽度，必须放在 geom_boxplot 之前
+  # Add error bars; note that width controls the crossbar width and this layer must be placed before geom_boxplot
   stat_boxplot(geom = "errorbar", width = 0.4) +
-  # 绘制箱线图
-  geom_boxplot(outlier.shape = 21, width = 0.6,color="black") + # outlier.shape = NA 可以隐藏离群点，视需求而定
+  # Draw the boxplot
+  geom_boxplot(outlier.shape = 21, width = 0.6,color="black") + # outlier.shape = NA hides the outlier points, depending on your needs
   scale_fill_manual(values = c("#E69F00","#ECB240","#F2C57A","#CCCCCC")) +
-  # 美化界面
+  # Visual polish
   theme_classic(base_size = 16) +
   labs(title = "",
        x = "",
@@ -1521,7 +1521,7 @@ p <- ggplot(adi_7d.k27.tpm.df, aes(x = category, y = log2tpm, fill = category)) 
   legend.position = "none",
   axis.text = element_text(color="black"),
   panel.grid.minor = element_blank()
-  ) # 如果不需要图例可以隐藏
+  ) # the legend can be hidden if it is not needed
 ggsave(file = "outplots/fig1/fig1_e.tg.log2tpm.adi_7d.pdf",p,width=6,height=4,dpi=300)
 
 
@@ -1540,18 +1540,18 @@ adi_14d.k27.tpm.df <- data.frame(
     log2tpm=c(log2(adi_14d.k27.tpm[,1]+1),log2(adi_14d.MRR.tpm[,1]+1),log2(adi_14d.peaks.tpm[,1]+1),log2(adi_14d.k27.control.tpm[,1]+1))
 )
 
-# 确保顺序是：len < 7, len >= 7, control
+# Make sure the order is: len < 7, len >= 7, control
 adi_14d.k27.tpm.df$category <- factor(adi_14d.k27.tpm.df$category, 
                                   levels = c("ROIs (l >= 7)","H3K27me3 MRRs","H3K27me3 peaks","ROIs' Controls"))
 
 
 p <- ggplot(adi_14d.k27.tpm.df, aes(x = category, y = log2tpm, fill = category)) +
-  # 添加误差线，注意 width 控制横杠宽度，必须放在 geom_boxplot 之前
+  # Add error bars; note that width controls the crossbar width and this layer must be placed before geom_boxplot
   stat_boxplot(geom = "errorbar", width = 0.4) +
-  # 绘制箱线图
-  geom_boxplot(outlier.shape = 21, width = 0.6,color="black") + # outlier.shape = NA 可以隐藏离群点，视需求而定
+  # Draw the boxplot
+  geom_boxplot(outlier.shape = 21, width = 0.6,color="black") + # outlier.shape = NA hides the outlier points, depending on your needs
   scale_fill_manual(values = c("#CC79A7","#D695BC","#E0B0D2","#CCCCCC")) +
-  # 美化界面
+  # Visual polish
   theme_classic(base_size = 16) +
   labs(title = "",
        x = "",
@@ -1560,16 +1560,16 @@ p <- ggplot(adi_14d.k27.tpm.df, aes(x = category, y = log2tpm, fill = category))
   legend.position = "none",
   axis.text = element_text(color="black"),
   panel.grid.minor = element_blank()
-  ) # 如果不需要图例可以隐藏
+  ) # the legend can be hidden if it is not needed
 ggsave(file = "outplots/fig1/fig1_e.tg.log2tpm.adi_14d.pdf",p,width=6,height=4,dpi=300)
 
 
 ```
 
 
-# f. 与其他组蛋白修饰信号的重叠情况
-## 1. 覆盖信号的比例coverage; 
-## 2. 各个chip的富集水平, 与背景相比
+# f. Overlap with other histone modification signals
+## 1. Proportion of covered signal (coverage); 
+## 2. Enrichment level of each chip, compared with the background
 ```{r}
 
 l1 <- bt.intersect(a=msc.all,b=k27.env$msc.k27,wa=T)
@@ -1586,36 +1586,36 @@ rownames(df) <- colnames(msc.all)[c(4,5,7:11)]
 row_order <- rownames(df)
 col_order <- colnames(df)
 
-# 4. 将行名转换为一列，并转换为长格式数据
+# 4. Convert the row names into a column and reshape the data into long format
 df_long <- df %>%
   mutate(Feature = rownames(df)) %>%
   pivot_longer(cols = -Feature, names_to = "Condition", values_to = "Value")
 
-# 5. 锁定行列顺序：将 Feature 和 Condition 转换为 Factor，并指定 levels
-# 注意：ggplot2 默认 y 轴是从下往上画的，为了让第一行 "DNase" 保持在最上方，我们需要将行顺序反转 (rev)
+# 5. Lock the row/column order: convert Feature and Condition to factors and specify levels
+# Note: ggplot2 draws the y axis from bottom to top by default; to keep the first row "DNase" at the top, we need to reverse the row order (rev)
 df_long$Feature <- factor(df_long$Feature, levels = rev(row_order))
 df_long$Condition <- factor(df_long$Condition, levels = col_order)
 
-# 6. 开始绘制热图
+# 6. Start drawing the heatmap
 p <- ggplot(df_long, aes(x = Condition, y = Feature, fill = Value)) +
-  geom_tile(color = "white", size = 0.5) +  # 单元格边框设为白色，增加精致感
-  # 设置渐变色：0为白色，高值向暖色（红）过渡，使用 limits = c(0, NA) 确保 0 对应白色
+  geom_tile(color = "white", size = 0.5) +  # set the cell borders to white for a more refined look
+  # Set the gradient: 0 is white and high values transition toward warm colors (red); use limits = c(0, NA) to ensure that 0 maps to white
   scale_fill_gradientn(
     colors = c("#ffffff", "#ffebae", "#ff9e3d", "#d7191c"), 
-    values = c(0, 0.1, 0.5, 1.0), # 控制颜色过渡的权重
+    values = c(0, 0.1, 0.5, 1.0), # weights that control the color transition
     limits = c(0, max(df_long$Value)),
     name = "Value"
   ) +
-  # 调整美化主题
+  # Adjust the polished theme
   theme_minimal(base_size = 16) +
-  labs(x = NULL, y = NULL) + # 去掉多余的轴标签
+  labs(x = NULL, y = NULL) + # remove the redundant axis labels
   theme(
     axis.text.x = element_text(color = "black"),
     axis.text.y = element_text(color = "black"),
-    panel.grid = element_blank(), # 移除网格线
-    legend.position = "right"     # 图例放右侧
+    panel.grid = element_blank(), # remove the grid lines
+    legend.position = "right"     # place the legend on the right
   ) +
-  # 在格子中添加数值标注（可选，如果不需要可以删掉下面这行 geom_text）
+  # Add numeric labels in the cells (optional; delete the geom_text line below if not needed)
   geom_text(aes(label = sprintf("%.3f", Value)), color = "black", size = 4)
 ggsave(p,file = "outplots/fig1/fig1_g.other.chip.coverage.pdf",width=6,height=7)
 
@@ -1633,7 +1633,7 @@ rownames(msc.otherchip.out) <- mark_names
 colnames(msc.otherchip.out) <- c("lower","or","upper","sig")
 
 for (i in 1:length(mark_names)){
-    # 1. 计算整体的c(a1,a2)和c(b1,b2)
+    # 1. Compute the overall c(a1,a2) and c(b1,b2)
     k4_pos_bins <- msc.all[msc.all[,i+3] == 1, 1:3]
     gr_k4_active <- make_gr(k4_pos_bins)
     gr_roi <- make_gr(k27.env$msc.k27)
@@ -1641,19 +1641,19 @@ for (i in 1:length(mark_names)){
     roi_densities <- data.frame(a1=countOverlaps(gr_roi, gr_k4_active),a2=round(width(gr_roi)/200)-countOverlaps(gr_roi, gr_k4_active))
     control_densities <- data.frame(b1=countOverlaps(gr_control, gr_k4_active),b2=round(width(gr_control)/200)-countOverlaps(gr_control, gr_k4_active))
 
-    # 2. 循环1000次计算每次的OR值
-    set.seed(42) # 保证结果可重复
+    # 2. Loop 1000 times to compute the OR in each iteration
+    set.seed(42) # ensure the results are reproducible
     n_iterations <- 1000
     sample_size <- 1000
     results <- replicate(n_iterations, {
-  # 随机抽样
+  # Random sampling
         s_roi <- roi_densities[sample(nrow(roi_densities), sample_size),]
         s_con <- control_densities[sample(nrow(control_densities), sample_size*2),]
         out <- fisher.test(matrix(c(a1=sum(s_roi$a1),a2=sum(s_roi$a2),b1=sum(s_con$b1),b2=sum(s_con$b2)),nrow=2,ncol=2))$estimate
         
         return(as.numeric(out))
     })
-    # 3. 计算最终的OR值和置信区间
+    # 3. Compute the final OR and confidence interval
     output <- c(quantile(results,0.05),quantile(results,0.5),quantile(results,0.95)) %>% as.numeric
     issig <- ifelse(as.numeric((quantile(results,0.05)-1)*(quantile(results,0.95)-1)) >0 ,"sig","unsig")
     msc.otherchip.out[i,] <- c(output,issig)
@@ -1665,7 +1665,7 @@ rownames(adi_7d.otherchip.out) <- mark_names
 colnames(adi_7d.otherchip.out) <- c("lower","or","upper","sig")
 
 for (i in 1:length(mark_names)){
-    # 1. 计算整体的c(a1,a2)和c(b1,b2)
+    # 1. Compute the overall c(a1,a2) and c(b1,b2)
     k4_pos_bins <- adi_7d.all[adi_7d.all[,i+3] == 1, 1:3]
     gr_k4_active <- make_gr(k4_pos_bins)
     gr_roi <- make_gr(k27.env$adi_7d.k27)
@@ -1673,19 +1673,19 @@ for (i in 1:length(mark_names)){
     roi_densities <- data.frame(a1=countOverlaps(gr_roi, gr_k4_active),a2=round(width(gr_roi)/200)-countOverlaps(gr_roi, gr_k4_active))
     control_densities <- data.frame(b1=countOverlaps(gr_control, gr_k4_active),b2=round(width(gr_control)/200)-countOverlaps(gr_control, gr_k4_active))
 
-    # 2. 循环1000次计算每次的OR值
-    set.seed(42) # 保证结果可重复
+    # 2. Loop 1000 times to compute the OR in each iteration
+    set.seed(42) # ensure the results are reproducible
     n_iterations <- 1000
     sample_size <- 1000
     results <- replicate(n_iterations, {
-  # 随机抽样
+  # Random sampling
         s_roi <- roi_densities[sample(nrow(roi_densities), sample_size),]
         s_con <- control_densities[sample(nrow(control_densities), sample_size*2),]
         out <- fisher.test(matrix(c(a1=sum(s_roi$a1),a2=sum(s_roi$a2),b1=sum(s_con$b1),b2=sum(s_con$b2)),nrow=2,ncol=2))$estimate
         
         return(as.numeric(out))
     })
-    # 3. 计算最终的OR值和置信区间
+    # 3. Compute the final OR and confidence interval
     output <- c(quantile(results,0.05),quantile(results,0.5),quantile(results,0.95)) %>% as.numeric
     issig <- ifelse(as.numeric((quantile(results,0.05)-1)*(quantile(results,0.95)-1)) >0 ,"sig","unsig")
     adi_7d.otherchip.out[i,] <- c(output,issig)
@@ -1698,7 +1698,7 @@ rownames(adi_15d.otherchip.out) <- mark_names
 colnames(adi_15d.otherchip.out) <- c("lower","or","upper","sig")
 
 for (i in 1:length(mark_names)){
-    # 1. 计算整体的c(a1,a2)和c(b1,b2)
+    # 1. Compute the overall c(a1,a2) and c(b1,b2)
     k4_pos_bins <- adi_15d.all[adi_15d.all[,i+3] == 1, 1:3]
     gr_k4_active <- make_gr(k4_pos_bins)
     gr_roi <- make_gr(k27.env$adi_15d.k27)
@@ -1706,19 +1706,19 @@ for (i in 1:length(mark_names)){
     roi_densities <- data.frame(a1=countOverlaps(gr_roi, gr_k4_active),a2=round(width(gr_roi)/200)-countOverlaps(gr_roi, gr_k4_active))
     control_densities <- data.frame(b1=countOverlaps(gr_control, gr_k4_active),b2=round(width(gr_control)/200)-countOverlaps(gr_control, gr_k4_active))
 
-    # 2. 循环1000次计算每次的OR值
-    set.seed(42) # 保证结果可重复
+    # 2. Loop 1000 times to compute the OR in each iteration
+    set.seed(42) # ensure the results are reproducible
     n_iterations <- 1000
     sample_size <- 1000
     results <- replicate(n_iterations, {
-  # 随机抽样
+  # Random sampling
         s_roi <- roi_densities[sample(nrow(roi_densities), sample_size),]
         s_con <- control_densities[sample(nrow(control_densities), sample_size*2),]
         out <- fisher.test(matrix(c(a1=sum(s_roi$a1),a2=sum(s_roi$a2),b1=sum(s_con$b1),b2=sum(s_con$b2)),nrow=2,ncol=2))$estimate
         
         return(as.numeric(out))
     })
-    # 3. 计算最终的OR值和置信区间
+    # 3. Compute the final OR and confidence interval
     output <- c(quantile(results,0.05),quantile(results,0.5),quantile(results,0.95)) %>% as.numeric
     issig <- ifelse(as.numeric((quantile(results,0.05)-1)*(quantile(results,0.95)-1)) >0 ,"sig","unsig")
     adi_15d.otherchip.out[i,] <- c(output,issig)
@@ -1750,18 +1750,18 @@ library(scales)
 
 # df: category, time, OR, lower, upper, FDR
 
-# ---- 1) 预处理：显著性/方向/深浅 ----
+# ---- 1) Preprocessing: significance/direction/intensity ----
 df2 <- df %>%
   mutate(
-    # 转换为 Beta 值 (log2 转换)
+    # Convert to Beta values (log2 transformation)
     beta = log2(OR),
     beta_lower = log2(lower),
     beta_upper = log2(upper),
     
-    # 颜色分配逻辑
-    # sig == "sig" 且 OR > 1 -> 红色
-    # sig == "sig" 且 OR < 1 -> 蓝色
-    # sig == "unsig" -> 灰色
+    # Color assignment logic
+    # sig == "sig" and OR > 1 -> red
+    # sig == "sig" and OR < 1 -> blue
+    # sig == "unsig" -> gray
     color_group = case_when(
       sig == "unsig" ~ "Non-Significant",
       sig == "sig" & OR > 1 ~ "Risk (Increased)",
@@ -1770,30 +1770,30 @@ df2 <- df %>%
     )
   )
 
-# 因子排序 (根据你的输入数据，ADI_15d 在数据里是 ADI_14d，请检查)
+# Factor ordering (in your input data ADI_15d is stored as ADI_14d, please check)
 time_levels <- c("MSC", "ADI_7d", "ADI_14d") 
 df2$time <- factor(df2$time, levels = time_levels)
 
-# Category 排序 (如果 mark_names 未定义，默认按字母或手动指定)
+# Category ordering (if mark_names is undefined, default to alphabetical order or specify manually)
 # mark_names <- c("DNase", "H3K27ac", "H3K36me3", "H3K4me1", "H3K4me3", "H3K9ac", "H3K9me3")
 # df2$category <- factor(df2$category, levels = mark_names)
 
-# 2. 定义颜色
-# 挑选了更具学术感的深红和深蓝
+# 2. Define colors
+# Chose a deeper red and a deeper blue for a more academic look
 my_colors <- c(
-  "Risk (Increased)" = "#a50f15",      # 深红
-  "Protective (Decreased)" = "#08519c", # 深蓝
-  "Non-Significant" = "#BDBDBD"         # 灰色
+  "Risk (Increased)" = "#a50f15",      # deep red
+  "Protective (Decreased)" = "#08519c", # deep blue
+  "Non-Significant" = "#BDBDBD"         # gray
 )
 
-# 3. 绘图
+# 3. Plot
 dodge <- position_dodge(width = 0.7)
 
 p <- ggplot(df2, aes(x = category, y = beta, group = time, color = color_group)) +
-  # 参考线：Beta = 0 (对应 OR = 1)
+  # Reference line: Beta = 0 (corresponding to OR = 1)
   geom_hline(yintercept = 0, linetype = "dashed", linewidth = 0.6, color = "grey30") +
   
-  # 误差线
+  # Error bars
   geom_errorbar(
     aes(ymin = beta_lower, ymax = beta_upper),
     position = dodge,
@@ -1801,46 +1801,46 @@ p <- ggplot(df2, aes(x = category, y = beta, group = time, color = color_group))
     linewidth = 0.8
   ) +
   
-  # 点
+  # Points
   geom_point(
     aes(shape = time),
     position = dodge,
     size = 3.5,
     stroke = 1,
-    fill = "white" # 如果想让点是空心的，可以将 shape 改为 21-25
+    fill = "white" # to make the points hollow, change shape to 21-25
   ) +
   
-  # 颜色映射
+  # Color mapping
   scale_color_manual(values = my_colors,guide = "none") +
   
-  # 形状映射 (对应你数据中的三个时间点)
+  # Shape mapping (corresponding to the three time points in your data)
   scale_shape_manual(values = c("MSC" = 16, "ADI_7d" = 17, "ADI_14d" = 15)) +
   
-  # 标签
+  # Labels
   labs(
     y = "Beta Estimate",
     x = NULL,
     shape = "Time"
   ) +
   
-  # 主题
+  # Theme
   theme_classic(base_size = 16) +
   theme(
     panel.grid.minor = element_blank(),
-    panel.grid.major.y = element_line(color = "grey95"), # 添加淡淡的水平网格线方便对齐
-    axis.text.x = element_text(color = "black"), # 旋转 x 轴标签防止重叠
+    panel.grid.major.y = element_line(color = "grey95"), # add faint horizontal grid lines to aid alignment
+    axis.text.x = element_text(color = "black"), # rotate the x-axis labels to prevent overlap
     axis.text.y = element_text(color = "black"),
     legend.position = "right"
   )
 
-# 4. 保存
+# 4. Save
 ggsave(file = "outplots/fig1/fig1_f.other.chip.bivalent.pdf", p, width = 10, height = 7, dpi = 300)
 
 
 ```
 
 
-# sup1.a 展示所有组蛋白修饰的信号占据比例
+# sup1.a Show the fraction of signal occupancy of all histone modifications
 ```{r}
 all.coverage.df <- data.frame(matrix(nrow=8,ncol=3))
 rownames(all.coverage.df) <- mark_names
@@ -1853,16 +1853,16 @@ for (i in 1:length(mark_names)){
 }
 
 
-# 数据转换：从宽格式转为长格式
-# 将行名转为一列，并使用 pivot_longer 展平数据
+# Data transformation: from wide format to long format
+# Convert the row names into a column and flatten the data with pivot_longer
 df_long <- all.coverage.df %>%
   tibble::rownames_to_column(var = "Marker") %>%
   pivot_longer(cols = -Marker, names_to = "Sample", values_to = "Coverage")
 
-# 4. 锁定样本顺序（确保颜色按 MSC, ADI_7d, ADI_14d 依次对应）
+# 4. Lock the sample order (so that the colors map to MSC, ADI_7d, ADI_14d in order)
 df_long$Sample <- factor(df_long$Sample, levels = c("MSC", "ADI_7d", "ADI_14d"))
 
-# 5. 绘图
+# 5. Plot
 p <- ggplot(df_long, aes(x = Marker, y = Coverage, fill = Sample)) +
   geom_bar(stat = "identity", position = position_dodge(width = 0.8), width = 0.7) +
   scale_fill_manual(values = c("MSC" = "#0072B2", 
@@ -1875,13 +1875,13 @@ p <- ggplot(df_long, aes(x = Marker, y = Coverage, fill = Sample)) +
        fill = "Sample Type") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1),
   axis.text=element_text(color="black"),
-  legend.position="top") # 如果标签太挤，旋转45度
+  legend.position="top") # if the labels are too crowded, rotate them by 45 degrees
 ggsave(file = "outplots/fig1/sup/sup1_a.all.chip.coverage.pdf", p, width = 12, height = 5, dpi = 300)
 
 ```
 
 <!-- 
-# sup1.b 展示k27.all对应数据的长度与数量分布
+# sup1.b Show the length and count distribution of the k27.all data
 ```{r}
 hist(k27.env$msc.k27.all$len)
 library(ggplot2)
@@ -1889,58 +1889,58 @@ library(ggplot2)
 max_y <- 170000
 max_x <- 8
 p1 <- ggplot(data.frame(len = k27.env$msc.k27.all$len), aes(x = log2(len))) +
-  # 绘制直方图：设置填充颜色、边框颜色和透明度
+  # Draw the histogram: set the fill color, border color and transparency
   geom_histogram(binwidth = 0.6, boundary = 0, fill = "#1F77B4", color = "black") +
   scale_y_continuous(limits = c(0, max_y),expand = expansion(mult = c(0, 0.1))) +
   scale_x_continuous(limits = c(0, max_x),expand = c(-0.1, 0.1)) +
-  # 使用简洁的主题
+  # Use a clean theme
   theme_classic(base_size = 16) +
-  # 添加标题和修改坐标轴标签
+  # Add a title and modify the axis labels
   labs(
     title = ,
     subtitle = ,
     x = expression(log[2](Length)),
     y = ""
   ) +
-  # 进一步优化细节
+  # Further fine-tune the details
   theme(
     axis.text = element_text(color="black")
 )
 
 p2 <- ggplot(data.frame(len = k27.env$adi_7d.k27.all$len), aes(x = log2(len))) +
-  # 绘制直方图：设置填充颜色、边框颜色和透明度
+  # Draw the histogram: set the fill color, border color and transparency
   geom_histogram(binwidth = 0.6, boundary = 0, fill = "#2CA02C", color = "black") +
   scale_y_continuous(limits = c(0, max_y),expand = expansion(mult = c(0, 0.1))) +
   scale_x_continuous(limits = c(0, max_x),expand = c(-0.1, 0.1)) +
-  # 使用简洁的主题
+  # Use a clean theme
   theme_classic(base_size = 16) +
-  # 添加标题和修改坐标轴标签
+  # Add a title and modify the axis labels
   labs(
     title = ,
     subtitle = ,
     x = expression(log[2](Length)),
     y = ""
   ) +
-  # 进一步优化细节
+  # Further fine-tune the details
   theme(
     axis.text = element_text(color="black")
 )
 
 p3 <- ggplot(data.frame(len = k27.env$adi_15d.k27.all$len), aes(x = log2(len))) +
-  # 绘制直方图：设置填充颜色、边框颜色和透明度
+  # Draw the histogram: set the fill color, border color and transparency
   geom_histogram(binwidth = 0.6, boundary = 0, fill = "#D62728", color = "black") +
   scale_y_continuous(limits = c(0, max_y),expand = expansion(mult = c(0, 0.1))) +
   scale_x_continuous(limits = c(0, max_x),expand = c(-0.1, 0.1)) +
-  # 使用简洁的主题
+  # Use a clean theme
   theme_classic(base_size = 16) +
-  # 添加标题和修改坐标轴标签
+  # Add a title and modify the axis labels
   labs(
     title = ,
     subtitle = ,
     x = expression(log[2](Length)),
     y = ""
   ) +
-  # 进一步优化细节
+  # Further fine-tune the details
   theme(
     axis.text = element_text(color="black")
 )
@@ -1951,7 +1951,7 @@ ggsave(file = "outplots/fig1/sup/sup1_b.all.k27.hist.pdf",combined_plot,width=11
 ``` -->
 
 
-# sup1.c 展示不同长度ROIs与对应靶基因数量与表达的关系
+# sup1.c Show the relationship between ROIs of different lengths and the count and expression of their target genes
 ```{r}
 k27.env$msc.k27.all.pro.tg <- read.table(file = "/storage/main/projects/bigcgpu-prj/zhangtianpei/Project/chromHMM/DiffCluster/output/fig1/msc.k27.all.tg.bed.tsv",header = T)
 k27.env$msc.k27.all.pro.tg <- k27.env$msc.k27.all.pro.tg[k27.env$msc.k27.all.pro.tg$final_type != "intergenic_far",]
@@ -1972,7 +1972,7 @@ for (i in 2:15){
 boxplot(outtpm.list[[2]],outtpm.list[[3]],outtpm.list[[4]],outtpm.list[[5]],outtpm.list[[6]],outtpm.list[[7]],outtpm.list[[8]],outtpm.list[[9]],outtpm.list[[10]])
 
 
-## 做一个简单的敏感性分析：对应l>=3,l>=5,l>=7,l>=9对应的靶基因表达情况
+## Do a simple sensitivity analysis: target gene expression for l>=3, l>=5, l>=7, l>=9
 
 outtpm.list <- list()
 for (i in c(3,5,7,9,15)){
@@ -1988,28 +1988,28 @@ msc.allroi.tpm <- data.frame(
 
 
 
-# 1. 准备数据 (假设您已经有了 msc.allroi.tpm)
-# 这里为了演示，我先生成模拟数据
+# 1. Prepare the data (assuming you already have msc.allroi.tpm)
+# For demonstration purposes, simulated data are generated here
 set.seed(123)
 categories_order <- c("l >= 3", "l >= 5", "l >= 7", "l >= 9", "l >= 15")
 counts <- c(nrow(k27.env$msc.k27.all[k27.env$msc.k27.all$len >= 3,]),nrow(k27.env$msc.k27.all[k27.env$msc.k27.all$len >= 5,]),nrow(k27.env$msc.k27.all[k27.env$msc.k27.all$len >= 7,]),nrow(k27.env$msc.k27.all[k27.env$msc.k27.all$len >= 9,]),nrow(k27.env$msc.k27.all[k27.env$msc.k27.all$len >= 15,]))
 
-# 累积频数数据
+# Cumulative frequency data
 cum_data <- data.frame(
   category = factor(categories_order, levels = categories_order),
   cum_val = counts
 )
 msc.allroi.tpm$category <- factor(msc.allroi.tpm$category,levels=categories_order)
 
-# 2. 绘制上方图表：柱状图 (累积频数)
-# 要求：倒着画，x轴在上面
+# 2. Draw the upper panel: bar chart (cumulative frequency)
+# Requirement: draw it upside down, with the x axis at the top
 p1 <- ggplot(cum_data, aes(x = category, y = cum_val)) +
   geom_col(fill = "#69b3a2", width = 0.6, alpha = 0.8) +
-  # 使用 scale_y_reverse 使柱子向下生长
+  # Use scale_y_reverse so that the bars grow downward
   scale_y_reverse(
     #labels = scales::percent_format(), 
     expand = expansion(mult = c(0.1, 0))) +
-  # 将 x 轴移动到顶部
+  # Move the x axis to the top
   scale_x_discrete(position = "top") +
   labs(y = "Cumulative Frequency", x = NULL) +
   theme_bw(base_size = 16) +
@@ -2021,10 +2021,10 @@ p1 <- ggplot(cum_data, aes(x = category, y = cum_val)) +
 
 
 
-# 3. 绘制下方图表：箱线图 (基因表达量)
+# 3. Draw the lower panel: boxplot (gene expression)
 p2 <- ggplot(msc.allroi.tpm, aes(x = category, y = log2tpm)) +
-  # coef = 0 只保留箱体（25%-75%）和中位数线，去掉上下须线
-  # outlier.shape = NA 去掉所有异常值点
+  # coef = 0 keeps only the box (25%-75%) and the median line, removing the whiskers
+  # outlier.shape = NA removes all outlier points
   stat_boxplot(geom = "errorbar",
         width=0.4)+
   geom_boxplot(aes(fill = category), coef = 0, outlier.shape = NA, alpha = 1, width = 0.6) +
@@ -2039,12 +2039,12 @@ p2 <- ggplot(msc.allroi.tpm, aes(x = category, y = log2tpm)) +
     panel.grid.minor = element_blank()
   )
 
-# 4. 使用 patchwork 组合两个图表
-# plot_layout(heights = c(1, 2)) 设置上下两个图的高度比例
+# 4. Combine the two panels with patchwork
+# plot_layout(heights = c(1, 2)) sets the height ratio of the upper and lower panels
 combined_plot <- p1 / p2 + 
   patchwork::plot_layout(heights = c(1, 1.5)) 
 
-# 显示图表
+# Show the plot
 print(combined_plot)
 
 ggsave("outplots/fig1/sup/sup1_c.MSC.compare.pdf",combined_plot,width=5,height=6,dpi=300)
@@ -2065,28 +2065,28 @@ msc.allroi.tpm <- data.frame(
 
 
 
-# 1. 准备数据 (假设您已经有了 msc.allroi.tpm)
-# 这里为了演示，我先生成模拟数据
+# 1. Prepare the data (assuming you already have msc.allroi.tpm)
+# For demonstration purposes, simulated data are generated here
 set.seed(123)
 categories_order <- c("l >= 3", "l >= 5", "l >= 7", "l >= 9", "l >= 17")
 counts <- c(nrow(k27.env$adi_7d.k27.all[k27.env$adi_7d.k27.all$len >= 3,]),nrow(k27.env$adi_7d.k27.all[k27.env$adi_7d.k27.all$len >= 5,]),nrow(k27.env$adi_7d.k27.all[k27.env$adi_7d.k27.all$len >= 7,]),nrow(k27.env$adi_7d.k27.all[k27.env$adi_7d.k27.all$len >= 9,]),nrow(k27.env$adi_7d.k27.all[k27.env$adi_7d.k27.all$len >= 17,]))
 
-# 累积频数数据
+# Cumulative frequency data
 cum_data <- data.frame(
   category = factor(categories_order, levels = categories_order),
   cum_val = counts
 )
 msc.allroi.tpm$category <- factor(msc.allroi.tpm$category,levels=categories_order)
 
-# 2. 绘制上方图表：柱状图 (累积频数)
-# 要求：倒着画，x轴在上面
+# 2. Draw the upper panel: bar chart (cumulative frequency)
+# Requirement: draw it upside down, with the x axis at the top
 p1 <- ggplot(cum_data, aes(x = category, y = cum_val)) +
   geom_col(fill = "#69b3a2", width = 0.6, alpha = 0.8) +
-  # 使用 scale_y_reverse 使柱子向下生长
+  # Use scale_y_reverse so that the bars grow downward
   scale_y_reverse(
     #labels = scales::percent_format(), 
     expand = expansion(mult = c(0.1, 0))) +
-  # 将 x 轴移动到顶部
+  # Move the x axis to the top
   scale_x_discrete(position = "top") +
   labs(y = "Cumulative Frequency", x = NULL) +
   theme_bw(base_size = 16) +
@@ -2098,10 +2098,10 @@ p1 <- ggplot(cum_data, aes(x = category, y = cum_val)) +
 
 
 
-# 3. 绘制下方图表：箱线图 (基因表达量)
+# 3. Draw the lower panel: boxplot (gene expression)
 p2 <- ggplot(msc.allroi.tpm, aes(x = category, y = log2tpm)) +
-  # coef = 0 只保留箱体（25%-75%）和中位数线，去掉上下须线
-  # outlier.shape = NA 去掉所有异常值点
+  # coef = 0 keeps only the box (25%-75%) and the median line, removing the whiskers
+  # outlier.shape = NA removes all outlier points
   stat_boxplot(geom = "errorbar",
         width=0.4)+
   geom_boxplot(aes(fill = category), coef = 0, outlier.shape = NA, alpha = 1, width = 0.6) +
@@ -2116,12 +2116,12 @@ p2 <- ggplot(msc.allroi.tpm, aes(x = category, y = log2tpm)) +
     panel.grid.minor = element_blank()
   )
 
-# 4. 使用 patchwork 组合两个图表
-# plot_layout(heights = c(1, 2)) 设置上下两个图的高度比例
+# 4. Combine the two panels with patchwork
+# plot_layout(heights = c(1, 2)) sets the height ratio of the upper and lower panels
 combined_plot <- p1 / p2 + 
   patchwork::plot_layout(heights = c(1, 1.5)) 
 
-# 显示图表
+# Show the plot
 print(combined_plot)
 
 ggsave("outplots/fig1/sup/sup1_c.ADI_7d.compare.pdf",combined_plot,width=5,height=6,dpi=300)
@@ -2142,28 +2142,28 @@ msc.allroi.tpm <- data.frame(
 
 
 
-# 1. 准备数据 (假设您已经有了 msc.allroi.tpm)
-# 这里为了演示，我先生成模拟数据
+# 1. Prepare the data (assuming you already have msc.allroi.tpm)
+# For demonstration purposes, simulated data are generated here
 set.seed(123)
 categories_order <- c("l >= 3", "l >= 5", "l >= 7", "l >= 9", "l >= 15")
 counts <- c(nrow(k27.env$adi_15d.k27.all[k27.env$adi_15d.k27.all$len >= 3,]),nrow(k27.env$adi_15d.k27.all[k27.env$adi_15d.k27.all$len >= 5,]),nrow(k27.env$adi_15d.k27.all[k27.env$adi_15d.k27.all$len >= 7,]),nrow(k27.env$adi_15d.k27.all[k27.env$adi_15d.k27.all$len >= 9,]),nrow(k27.env$adi_15d.k27.all[k27.env$adi_15d.k27.all$len >= 15,]))
 
-# 累积频数数据
+# Cumulative frequency data
 cum_data <- data.frame(
   category = factor(categories_order, levels = categories_order),
   cum_val = counts
 )
 msc.allroi.tpm$category <- factor(msc.allroi.tpm$category,levels=categories_order)
 
-# 2. 绘制上方图表：柱状图 (累积频数)
-# 要求：倒着画，x轴在上面
+# 2. Draw the upper panel: bar chart (cumulative frequency)
+# Requirement: draw it upside down, with the x axis at the top
 p1 <- ggplot(cum_data, aes(x = category, y = cum_val)) +
   geom_col(fill = "#69b3a2", width = 0.6, alpha = 0.8) +
-  # 使用 scale_y_reverse 使柱子向下生长
+  # Use scale_y_reverse so that the bars grow downward
   scale_y_reverse(
     #labels = scales::percent_format(), 
     expand = expansion(mult = c(0.1, 0))) +
-  # 将 x 轴移动到顶部
+  # Move the x axis to the top
   scale_x_discrete(position = "top") +
   labs(y = "Cumulative Frequency", x = NULL) +
   theme_bw(base_size = 16) +
@@ -2175,10 +2175,10 @@ p1 <- ggplot(cum_data, aes(x = category, y = cum_val)) +
 
 
 
-# 3. 绘制下方图表：箱线图 (基因表达量)
+# 3. Draw the lower panel: boxplot (gene expression)
 p2 <- ggplot(msc.allroi.tpm, aes(x = category, y = log2tpm)) +
-  # coef = 0 只保留箱体（25%-75%）和中位数线，去掉上下须线
-  # outlier.shape = NA 去掉所有异常值点
+  # coef = 0 keeps only the box (25%-75%) and the median line, removing the whiskers
+  # outlier.shape = NA removes all outlier points
   stat_boxplot(geom = "errorbar",
         width=0.4)+
   geom_boxplot(aes(fill = category), coef = 0, outlier.shape = NA, alpha = 1, width = 0.6) +
@@ -2193,12 +2193,12 @@ p2 <- ggplot(msc.allroi.tpm, aes(x = category, y = log2tpm)) +
     panel.grid.minor = element_blank()
   )
 
-# 4. 使用 patchwork 组合两个图表
-# plot_layout(heights = c(1, 2)) 设置上下两个图的高度比例
+# 4. Combine the two panels with patchwork
+# plot_layout(heights = c(1, 2)) sets the height ratio of the upper and lower panels
 combined_plot <- p1 / p2 + 
   patchwork::plot_layout(heights = c(1, 1.5)) 
 
-# 显示图表
+# Show the plot
 print(combined_plot)
 
 ggsave("outplots/fig1/sup/sup1_c.ADI_14d.compare.pdf",combined_plot,width=5,height=6,dpi=300)
@@ -2207,10 +2207,10 @@ ggsave("outplots/fig1/sup/sup1_c.ADI_14d.compare.pdf",combined_plot,width=5,heig
 
 ```
 <!-- 
-# sup1.e 流动桑基图展示转化情况
+# sup1.e Alluvial Sankey diagram showing the transitions
 ```{r}
 
-## 如果用l>=7来看的话
+## When looking at l>=7
 l1 <- data.frame(msc.all,index=1:nrow(msc.all))
 l1 <- l1[l1$H3K27me3 == 1,c(1,2,3,12)]
 l1.k27 <- bt.intersect(a=l1,b=k27.env$msc.k27,wa=T) %>% unique()
@@ -2242,12 +2242,12 @@ intersect(intersect(l1.out,l2),l3) %>% unique %>% length
 intersect(intersect(l1,l2),l3) %>% unique %>% length
 
 
-# 加载必要的库
+# Load the required libraries
 library(ggplot2)
 library(ggalluvial)
 
-# 构建所有路径及其流量（示例数据）
-# 每一行代表一条完整的路径：T1 -> T2 -> T3
+# Build all paths and their flows (example data)
+# Each row represents one complete path: T1 -> T2 -> T3
 paths <- expand.grid(
   MSC = c(0, 1),
   ADI_7d = c(0, 1),
@@ -2281,7 +2281,7 @@ ggsave("outplots/fig1/sup/sup1_e.ggalluvial.pdf",p,width=7,height=6,dpi=300)
 ``` -->
 
 
-# sup1.f 不同长度类别k27对应其在基因组注释情况
+# sup1.f Genomic annotation of k27 regions in different length classes
 ```{r}
 library(ChIPseeker)
 library(EnsDb.Hsapiens.v75)
@@ -2313,13 +2313,13 @@ peaklist <- list(
     ADI_14d2="output/fig1/adi_15d.k27.k2.bed")
 peak_objects <- lapply(peaklist, function(path) {
     if (!file.exists(path)) {
-        stop(paste("找不到文件:", path, "请检查路径或工作目录！"))
+        stop(paste("File not found:", path, "please check the path or working directory!"))
     }
-    # 使用 readPeakFile 读入，这会返回一个 GRanges 对象
+    # Read with readPeakFile, which returns a GRanges object
     return(readPeakFile(path))
 })
 
-# 4. 进行注释
+# 4. Annotate
 peakAnnoList <- lapply(peak_objects, annotatePeak, 
                        TxDb = EnsDb.Hsapiens.v75,
                        tssRegion = c(-2000, 2000), 

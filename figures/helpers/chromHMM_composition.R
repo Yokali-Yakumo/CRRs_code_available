@@ -1,7 +1,7 @@
 
-<!--
-Helper: chromHMM state-composition summary for a set of genomic windows grouped by cluster/time (returns a plottable data.frame).
---> 
+#
+# Helper: chromHMM state-composition summary for a set of genomic windows grouped by cluster/time (returns a plottable data.frame).
+#
 library(dplyr)
 library(tidyr)
 library(ggplot2)
@@ -16,32 +16,32 @@ chromHMM_composition <- function(
     use_bp = TRUE
 ) {
 
-  ## chromHMM.annot中定义的全部可能注释
+  ## All possible annotations defined in chromHMM.annot
   all.annotations <- unique(
     trimws(as.character(chromHMM.annot$Annotation))
   )
 
-  ## 提取注释列
+  ## Extract the annotation column
   if (is.numeric(annotation_col)) {
     annotation <- win[[annotation_col]]
   } else {
     if (!annotation_col %in% colnames(win)) {
-      stop("输入数据中不存在注释列：", annotation_col)
+      stop("Annotation column not found in the input data: ", annotation_col)
     }
     annotation <- win[[annotation_col]]
   }
 
   annotation <- trimws(as.character(annotation))
 
-  ## 检查NA
+  ## Check for NA values
   if (any(is.na(annotation) | annotation == "")) {
     stop(
       time, " ", cluster,
-      "中存在NA或空白ChromHMM注释。"
+      " contains NA or empty chromHMM annotations."
     )
   }
 
-  ## 检查是否出现chromHMM.annot之外的注释
+  ## Check for annotations that are absent from chromHMM.annot
   unknown.annotations <- setdiff(
     unique(annotation),
     all.annotations
@@ -50,7 +50,7 @@ chromHMM_composition <- function(
   if (length(unknown.annotations) > 0) {
     stop(
       time, " ", cluster,
-      "中存在未定义注释：",
+      " contains undefined annotations: ",
       paste(unknown.annotations, collapse = ", ")
     )
   }
@@ -62,8 +62,8 @@ chromHMM_composition <- function(
     stringsAsFactors = FALSE
   )
 
-  ## use_bp=TRUE：按覆盖碱基数统计
-  ## use_bp=FALSE：每个窗口权重均为1，相当于table(V4)
+  ## use_bp=TRUE: count by number of covered bases
+  ## use_bp=FALSE: every window has weight 1, equivalent to table(V4)
   if (use_bp) {
     dat$Weight <- dat$end - dat$start
   } else {
@@ -73,7 +73,7 @@ chromHMM_composition <- function(
   if (any(dat$Weight <= 0, na.rm = TRUE)) {
     stop(
       time, " ", cluster,
-      "中存在终点小于或等于起点的窗口。"
+      " contains windows whose end is less than or equal to their start."
     )
   }
 
@@ -86,7 +86,7 @@ chromHMM_composition <- function(
       .groups = "drop"
     ) %>%
 
-    ## 补齐当前数据中没有出现的注释
+    ## Fill in annotations that do not occur in the current data
     complete(
       Annotation = all.annotations,
       fill = list(
@@ -144,7 +144,7 @@ make_chromHMM_cluster_panel <- function(
       )
     ) +
 
-    ## 每个单独图仍使用facet strip展示cluster名称
+    ## Each individual panel still shows the cluster name in the facet strip
     facet_wrap(
       ~ Cluster,
       nrow = 1
@@ -263,7 +263,7 @@ make_chromHMM_cluster_panel <- function(
       )
     )
 
-  ## 除每行第一个面板外，不重复显示Y轴
+  ## Do not repeat the Y axis except for the first panel of each row
   if (!show.y.axis) {
 
     p <- p +

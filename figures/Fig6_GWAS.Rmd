@@ -13,7 +13,7 @@ load("input/5.8.Rdata")
 
 
 
-fig5.a 从SNPs per 1kb 水平整体来看这几个cluster的水平
+fig5.a Overall SNPs-per-1kb levels across the clusters
 ```{r}
 roi_info.split <- read.table(file = "~/Project/GWAS/input/roi_info.split.bed",header = T,sep = "\t")
 catelog_ref_snps <- read.table(file = "~/Project/GWAS/plink/gwas_expanded_set_with_pos.tsv",header = T)
@@ -52,42 +52,42 @@ colnames(snps.per1kb.results) <- c("category","ratio")
 
 
 
-# 3. 设置顺序：control 和 ac 放前面，后面接 cluster1-7
+# 3. Set the order: control and ac first, then cluster1-7
 target_order <- c("Control", "Enhancer", paste0("cluster", 1:7))
 snps.per1kb.results$category <- factor(snps.per1kb.results$category, levels = target_order)
 
-# 4. 定义颜色映射
-# control 用灰色，ac 用一个亮眼的绿色/青色（独立于蓝红系）
+# 4. Define the color mapping
+# grey for control and a bright green/cyan for ac (distinct from the blue-red palette)
 my_colors <- c(
-  "Control" = "#999999",     # 灰色
-  "Enhancer" = "#e31a1c",     # 春绿色 (亮色且独立)
-  "cluster1" = "#2ca02c", # 经典学术绿
-  "cluster2" = "#1b7837", # 深绿       
-  "cluster3" = "#3182bd", # 标准蓝    
-  "cluster4" = "#08519c", # 深蓝      
-  "cluster5" = "#b10026", # 科学红     
-  "cluster6" = "#feb24c", # 柔和橙黄  
-  "cluster7" = "#f768a1"  # 玫瑰粉红   
+  "Control" = "#999999",     # grey
+  "Enhancer" = "#e31a1c",     # spring green (bright and distinct)
+  "cluster1" = "#2ca02c", # classic academic green
+  "cluster2" = "#1b7837", # dark green       
+  "cluster3" = "#3182bd", # standard blue    
+  "cluster4" = "#08519c", # dark blue      
+  "cluster5" = "#b10026", # scientific red     
+  "cluster6" = "#feb24c", # soft orange-yellow  
+  "cluster7" = "#f768a1"  # rose pink   
 )
 
-# 5. 绘图
+# 5. Plot
 p <- ggplot(snps.per1kb.results, aes(x = category, y = ratio, fill = category)) +
-  # 设置柱子边框为黑色或无，这里加一点透明度突出 AC
+  # Set the bar borders to black or none; a little transparency here highlights AC
   geom_bar(stat = "identity", width = 0.7, color = "white", alpha = 0.9) +
-  # 针对 cluster 进一步调整透明度（可选）
+  # Further adjust the transparency of the clusters (optional)
   aes(alpha = ifelse(category %in% c("all.control", "all.H3K27ac"), 1.0, 0.7)) +
   scale_alpha_identity() +
   scale_fill_manual(values = my_colors) +
-  # 关键设置：
-  # expand = c(0,0) 确保柱子底部紧贴 X 轴
-  # breaks 设置刻度线
+  # Key settings:
+  # expand = c(0,0) keeps the bottoms of the bars flush with the X axis
+  # breaks sets the tick marks
   scale_y_continuous(
     expand = c(0, 0), 
     breaks = seq(0.2, 0.32, by = 0.02)
   ) +
-  # coord_cartesian 决定了视觉上的显示范围，从 0.2 开始
+  # coord_cartesian sets the visible range, starting at 0.2
   coord_cartesian(ylim = c(0.2, 0.32)) +
-  theme_classic(base_size = 16) + # 使用 classic 主题可以更清晰地看到 X 轴线
+  theme_classic(base_size = 16) + # the classic theme makes the X axis line clearly visible
   labs(
     title = "",
     x = NULL,
@@ -96,7 +96,7 @@ p <- ggplot(snps.per1kb.results, aes(x = category, y = ratio, fill = category)) 
   theme(
     axis.text.x = element_text(angle = 45, hjust = 1, color = "black"),
     axis.text.y = element_text(color = "black"),
-    axis.line.x = element_line(color = "black"), # 确保 X 轴线可见
+    axis.line.x = element_line(color = "black"), # ensure the X axis line is visible
     legend.position = "none"
   )
 
@@ -108,7 +108,7 @@ ggsave(file = "outplots/fig5_a.snps.per.1kb.barplot.pdf",p,width=8,height=4,dpi=
 
 
 
-fig5.b 从SNPs与背景的富集情况说明问题
+fig5.b SNP enrichment relative to background controls
 ```{r}
 
 gwas.malist <- dir("~/Project/GWAS/ma")
@@ -173,13 +173,13 @@ all.enrich.result$logp <- ifelse(all.enrich.result$logp > -log10(5e-8),-log10(5e
 
 
 
-# 加载必要的库
+# Load the required libraries
 library(ggplot2)
 library(dplyr)
 
-## 假设你的数据框名为 all.enrich.result，且至少包含以下列：
+## Assume your data frame is named all.enrich.result and contains at least the following columns:
 ## GWAS, cluster, OR, logp
-## 下面以你的示例为基础（如果你已经有 all.enrich.result，就不需要这段示例数据）
+## The example data below are for reference (skip them if you already have all.enrich.result)
 # all.enrich.result <- data.frame(
 #   GWAS   = c("ASAT", "ASAT", "ASAT", "ASAT", "ASAT", "ASAT"),
 #   cluster = paste0("cluster", 1:6),
@@ -187,31 +187,31 @@ library(dplyr)
 #   logp   = c(0.4550025, 1.3569231, 0.1890116, 0, 0, 0)
 # )
 
-## 预处理：设置显著性阈值 ---------------------------------------
-logp_cutoff <- 1.301   # 约等于 -log10(0.05)
+## Preprocessing: set the significance threshold ---------------------------------------
+logp_cutoff <- 1.301   # approximately -log10(0.05)
 
 plot.data <- all.enrich.result %>%
   mutate(
-    ## 是否显著（用于着色逻辑）
+    ## Whether the result is significant (used for the coloring logic)
     sig = logp >= logp_cutoff,
     
-    ## 计算颜色“强度”用的值：
-    ## 对于显著项：强度 ~ logp，非显著项统一 NA（后面用灰色）
+    ## Value used to compute the color intensity:
+    ## For significant terms the intensity follows logp; non-significant terms are set to NA (shown in grey later)
     logp_for_color = ifelse(sig, logp, NA),
     
-    ## 方向：OR > 1 记为 +1（红），OR < 1 记为 -1（蓝），OR==1 或 0 记为 0
+    ## Direction: OR > 1 is recorded as +1 (red), OR < 1 as -1 (blue), and OR == 1 or 0 as 0
     direction = case_when(
       OR > 1  ~  1,
       OR < 1  ~ -1,
       TRUE    ~  0
     ),
     
-    ## 用于连续色标映射的变量：
-    ## 思路：显著 & OR>1 → 正值；显著 & OR<1 → 负值；其余 NA（灰色）
+    ## Variable used for the continuous color scale:
+    ## Rationale: significant & OR > 1 gives a positive value, significant & OR < 1 a negative value, the rest NA (grey)
     color_val = ifelse(sig & direction != 0, direction * logp_for_color, NA_real_)
   )
 
-## 读取绘图用sample名称list
+## Read the list of sample names used for plotting
 final.samples <- fread(file = "final.intpu.samplename.3.24.txt",header = F,sep = "\t") %>% as.data.frame
 
 plot.data <- plot.data[plot.data$GWAS %in% final.samples[,1],]
@@ -221,49 +221,49 @@ plot.data$cluster <- factor(plot.data$cluster,c("all.ac","all.input",paste0('clu
 
 plot.data <- plot.data %>%
   mutate(
-    # 列分组：前两列为 GroupA，其余为 GroupB
-    # 这里的 levels(cluster)[1:2] 请根据你实际的列名修改
+    # Column grouping: the first two columns are GroupA and the rest GroupB
+    # Adjust levels(cluster)[1:2] here to match your actual column names
     col_group = ifelse(cluster %in% levels(factor(cluster))[1:2], "Col_Part1", "Col_Part2"),
 
   )
 
-## 构造颜色梯度 ---------------------------------------------------
-## 这里用蓝–白–红的连续色标：
-##   负值（蓝） ← 0（白） → 正值（红）
-## 但我们把非显著的格子设成灰色
+## Build the color gradient ---------------------------------------------------
+## A continuous blue-white-red color scale is used here:
+##   negative (blue) <- 0 (white) -> positive (red)
+## but non-significant cells are set to grey
 
-# 计算 color_val 的范围（去掉 NA）
+# Compute the range of color_val (ignoring NA)
 color_range <- range(plot.data$color_val, na.rm = TRUE)
-# 如果你的数据中暂时没有显著富集/耗竭，也能避免报错
+# This also prevents errors when no enrichment/depletion is significant in your data
 if (!is.finite(color_range[1])) {
   color_range <- c(-1, 1)
 }
 
-## 绘图 ----------------------------------------------------------
+## Plotting ----------------------------------------------------------
 p <- ggplot(plot.data, aes(x = cluster, y = GWAS)) +
   geom_tile(aes(fill = color_val),
             color = "grey80", size = 0.3) +
       
-  # --- 关键修改：添加分面 ---
+  # --- key change: adding facets ---
   facet_grid(
     . ~ col_group, 
     scales = "free", 
     space = "free"
   ) +
   
-  ## 手动设置颜色：
-  ## 非显著 (color_val = NA) 用 scale_fill_gradient2 的 na.value 设置
+  ## Set the colors manually:
+  ## Non-significant cells (color_val = NA) are set through na.value in scale_fill_gradient2
   scale_fill_gradient2(
     name = expression(paste("P value")),
-    low = "#4575B4",      # 蓝色
-    mid = "white",        # 中性
-    high = "#D73027",     # 红色
+    low = "#4575B4",      # blue
+    mid = "white",        # neutral
+    high = "#D73027",     # red
     midpoint = 0,
-    limits = color_range, # 保证蓝红对称
-    na.value = "white"   # 非显著：灰色/白色
+    limits = color_range, # keeps the blue-red scale symmetric
+    na.value = "white"   # non-significant: grey/white
   ) +
   
-  ## 主题/坐标美化
+  ## Theme and axis styling
   scale_x_discrete(expand = c(0, 0)) +
   scale_y_discrete(expand = c(0, 0)) +
   
@@ -287,14 +287,14 @@ ggsave(file = "outplots/fig5_b.gwas.clumped.fisher.pheat.pdf",width=8,height=8,d
 ```
 
 
-fig5.c 总体和分Clu水平的S-LDSC遗传力分析
+fig5.c Overall and per-cluster S-LDSC heritability analysis
 ```{r}
 
 total_input_dir <- "/storage/main/projects/bigcgpu-prj/zhangtianpei/Project/GWAS/ldsc/H3K27-S-LDSC"
 clu_input_dir <- "/storage/main/projects/bigcgpu-prj/zhangtianpei/Project/GWAS/ldsc/S-LDSC"
 samplelist <- read.table(file = "/storage/main/projects/bigcgpu-prj/zhangtianpei/Project/GWAS/input.GWAS.samplename",header = F)[,1]
 
-# 分两部分：1是总体ROIs和enhancer的LDSC遗传力富集，2是分clusters的遗传力
+# Two parts: (1) LDSC heritability enrichment for all ROIs and enhancers, (2) heritability by cluster
 
 total.ldsc.result <- data.frame()
 for (i in 1:length(samplelist)){
@@ -320,8 +320,8 @@ all.ldsc.result <- rbind(total.ldsc.result,clu.ldsc.result)
 
 all.ldsc.result$logp <- -log10(all.ldsc.result$pval)
 
-# 设定一个合理的 logp 上限，防止极小 P 值拉大色阶导致普通信号看不见
-# 建议设为 10 或者 20，5e-8 (7.3) 也可以
+# Set a sensible upper bound for logp so that extremely small P values do not stretch the color scale and hide ordinary signals
+# 10 or 20 is a reasonable choice; 5e-8 (7.3) also works
 max_logp <- -log10(5e-8) 
 all.ldsc.result$logp_capped <- ifelse(all.ldsc.result$logp > max_logp, max_logp, all.ldsc.result$logp)
 
@@ -329,18 +329,18 @@ logp_cutoff <- 1.301   # P < 0.05
 
 plot.data <- all.ldsc.result %>%
   mutate(
-    # 判定方向：Enrichment > 1 为正， < 1 为负
+    # Determine the direction: Enrichment > 1 is positive, < 1 is negative
     direction = ifelse(estimate > 1, 1, -1),
     
-    # 计算用于绘图的连续变量：带方向的 -log10(P)
-    # 这样正富集是红色，负富集（耗竭）是蓝色
+    # Continuous variable used for plotting: signed -log10(P)
+    # so positive enrichment is red and negative enrichment (depletion) is blue
     color_val = direction * logp_capped,
     
-    # 判定是否需要打星号
+    # Decide whether to add an asterisk
     sig_label = ifelse(logp >= logp_cutoff, "*", "")
   )
 
-# 2. 筛选和排序 GWAS 性状
+# 2. Filter and order the GWAS traits
 final.samples <- fread(file = "final.intpu.samplename.3.24.txt", header = F, sep = "\t") %>% as.data.frame()
 plot.data <- plot.data[plot.data$GWAS %in% final.samples[,1],]
 plot.data$GWAS <- final.samples[match(plot.data$GWAS,final.samples[,1]),3]
@@ -349,25 +349,25 @@ plot.data$GWAS <- factor(plot.data$GWAS,levels=rev(final.samples[,3]))
 plot.data$cluster <- factor(plot.data$cluster,c("Enhancer","All ROIs",paste0('cluster',1:7)))
 
 
-# 3. 确定色阶对称范围
-# 找到绝对值最大的值，确保 0 恰好在调色板中间（白色）
+# 3. Determine the symmetric color scale range
+# Find the largest absolute value so that 0 sits exactly in the middle of the palette (white)
 limit_val <- max(abs(plot.data$color_val), na.rm = TRUE)
 
-## 4. 绘图 ----------------------------------------------------------
+## 4. Plotting ----------------------------------------------------------
 plot.data <- plot.data %>%
   mutate(
-    # 列分组：前两列为 GroupA，其余为 GroupB
-    # 这里的 levels(cluster)[1:2] 请根据你实际的列名修改
+    # Column grouping: the first two columns are GroupA and the rest GroupB
+    # Adjust levels(cluster)[1:2] here to match your actual column names
     col_group = ifelse(cluster %in% levels(factor(cluster))[1:2], "Col_Part1", "Col_Part2"),
 
   )
 
-# 2. 绘图
+# 2. Plotting
 p <- ggplot(plot.data, aes(x = cluster, y = GWAS)) +
   geom_tile(aes(fill = color_val), color = "grey90", size = 0.1) +
   geom_text(aes(label = sig_label), color = "black", size = 5, vjust = 0.7) +
   
-  # --- 关键修改：添加分面 ---
+  # --- key change: adding facets ---
   facet_grid(
     . ~ col_group, 
     scales = "free", 
@@ -394,11 +394,11 @@ p <- ggplot(plot.data, aes(x = cluster, y = GWAS)) +
     axis.text.y = element_text(color = "black"),
     legend.position = "right",
     
-    # --- 关键美化：隐藏分面标签并调整间距 ---
-    strip.background = element_blank(), # 隐藏分面背后的灰色框
-    strip.text = element_blank(),       # 隐藏分面的文字标签 (Col_Part1等)
-    panel.spacing.x = unit(0.5, "cm"),  # 水平间距（分开列）
-    panel.spacing.y = unit(0.5, "cm")   # 垂直间距（分开行）
+    # --- key styling: hide the facet labels and adjust the spacing ---
+    strip.background = element_blank(), # hide the grey box behind the facets
+    strip.text = element_blank(),       # hide the facet text labels (Col_Part1 etc.)
+    panel.spacing.x = unit(0.5, "cm"),  # horizontal spacing (separates columns)
+    panel.spacing.y = unit(0.5, "cm")   # vertical spacing (separates rows)
   )
 
 print(p)
@@ -408,7 +408,7 @@ ggsave(file = "outplots/fig5_c.s-ldsc.pheat.pdf",width=8,height=8,dpi=300)
 ```
 
 
-fig5_d,e 关于分化过程中的S-LDSC遗传力富集计算
+fig5_d,e S-LDSC heritability enrichment during differentiation
 ```{r}
 library(dplyr)
 library(stringr)
@@ -420,11 +420,11 @@ calculate_tau_star <- function(
 ) {
   
   # ------------------------------------------------------------------
-  # 1. 检查并读取 results 文件
+  # 1. Check and read the results file
   # ------------------------------------------------------------------
   
   if (!file.exists(results_path)) {
-    stop("找不到 results 文件：", results_path)
+    stop("Results file not found: ", results_path)
   }
   
   results <- read.table(
@@ -448,17 +448,17 @@ calculate_tau_star <- function(
   
   if (length(missing_cols) > 0) {
     stop(
-      "results 文件缺少以下列：",
+      "The results file is missing the following columns: ",
       paste(missing_cols, collapse = ", ")
     )
   }
   
   # ------------------------------------------------------------------
-  # 2. 从 log 文件中提取 observed-scale h2
+  # 2. Extract the observed-scale h2 from the log file
   # ------------------------------------------------------------------
   
   if (!file.exists(log_path)) {
-    stop("找不到 log 文件：", log_path)
+    stop("Log file not found: ", log_path)
   }
   
   log_content <- readLines(log_path, warn = FALSE)
@@ -471,13 +471,13 @@ calculate_tau_star <- function(
   
   if (length(h2_line) != 1) {
     stop(
-      "无法唯一定位 'Total Observed scale h2:'。\n",
-      "共找到 ", length(h2_line), " 行，请检查 log 文件：",
+      "Could not uniquely locate 'Total Observed scale h2:'.\n",
+      "Found ", length(h2_line), " lines; please check the log file: ",
       log_path
     )
   }
   
-  # 只提取 h2: 后面的第一个数值，避免错误提取 h2 中的数字 2
+  # Extract only the first number after h2: so that the 2 inside h2 is not picked up
   h2_total <- as.numeric(
     sub(
       "^Total Observed scale h2:[[:space:]]*([-+0-9.eE]+).*$",
@@ -492,30 +492,30 @@ calculate_tau_star <- function(
     h2_total <= 0
   ) {
     stop(
-      "提取到的总遗传力无效：",
+      "The extracted total heritability is invalid: ",
       paste(h2_total, collapse = ", "),
-      "\n对应日志行：",
+      "\nCorresponding log line: ",
       h2_line
     )
   }
   
   # ------------------------------------------------------------------
-  # 3. 计算 tau*
+  # 3. Compute tau*
   # ------------------------------------------------------------------
   
   results_processed <- results %>%
     mutate(
-      # 仅适用于0/1二值注释
+      # Only valid for 0/1 binary annotations
       sd_annot = sqrt(Prop._SNPs * (1 - Prop._SNPs)),
       
       scaling_factor = M * sd_annot / h2_total,
       
       tau_star = scaling_factor * Coefficient,
       
-      # SE 应始终为非负数
+      # SE should always be non-negative
       tau_star_se = abs(scaling_factor) * Coefficient_std_error,
       
-      # 标准化前后Z-score不变
+      # The Z-score is unchanged by standardization
       tau_star_z = Coefficient / Coefficient_std_error,
       
       tau_star_p = 2 * pnorm(
@@ -545,12 +545,12 @@ calculate_tau_star <- function(
   return(results_processed)
 }
 
-# --- 使用示例 ---
+# --- Usage example ---
 # results_file <- "BMI.results"
 # log_file <- "BMI.log"
 # final_df <- calculate_tau_star(results_file, log_file)
 
-# 查看你关注的 Cluster 结果
+# Inspect the results for the clusters you are interested in
 # print(head(final_df %>% filter(grepl("Clu", Category))))
 
 clu_tau_results <- data.frame()
@@ -578,57 +578,57 @@ for (i in 1:length(samplelist)){
 #write.table(clu_tau_results,file = "output/clu_tau_results.tsv",row.names = F,col.names = T,sep = "\t",quote = F)
 
 
-# 2. 数据预处理
-# 定义颜色
+# 2. Data preprocessing
+# Define colors
 cluster_colors <- c(
-    "cluster1" = "#2ca02c", # 经典学术绿
-  "cluster2" = "#1b7837", # 深绿       
-  "cluster3" = "#3182bd", # 标准蓝    
-  "cluster4" = "#08519c", # 深蓝      
-  "cluster5" = "#b10026", # 科学红     
-  "cluster6" = "#feb24c", # 柔和橙黄  
-  "cluster7" = "#f768a1"  # 玫瑰粉红   
+    "cluster1" = "#2ca02c", # classic academic green
+  "cluster2" = "#1b7837", # dark green       
+  "cluster3" = "#3182bd", # standard blue    
+  "cluster4" = "#08519c", # dark blue      
+  "cluster5" = "#b10026", # scientific red     
+  "cluster6" = "#feb24c", # soft orange-yellow  
+  "cluster7" = "#f768a1"  # rose pink   
 )
 
 clu_tau_results <- read.table(file = "/storage/main/projects/bigcgpu-prj/zhangtianpei/Project/GWAS/ldsc/H3K27me3_period_tau_results/clu_tau_results.tsv",header = T,sep = "\t")
 clu_tau_results <- clu_tau_results[clu_tau_results$GWAS %in% read.table("period.sldsc.inputsamplelist")[,1],]
 
 plot_data <- clu_tau_results %>%
-  # 确保 period 顺序
+  # Ensure the period order
   mutate(period = factor(period, levels = c("ALL", "d0", "d7", "d15"))) %>%
-  # 逻辑1：判断每个 GWAS 内的每个 cluster 是否有任何一个 period 显著
+  # Logic 1: check whether any period is significant for each cluster within each GWAS
   group_by(GWAS, cluster) %>%
   mutate(any_sig = any(tau_star_p <= 0.05)) %>%
   ungroup() %>%
-  # 逻辑2：根据 any_sig 分配颜色，如果不显著则设为灰色
+  # Logic 2: assign colors according to any_sig, falling back to grey when not significant
   mutate(display_color = ifelse(any_sig, cluster, "NotSig")) %>%
-  # 逻辑3：判断点是否实心 (p <= 0.05 为实心)
+  # Logic 3: decide whether the point is filled (p <= 0.05 is filled)
   mutate(is_solid = ifelse(tau_star_p <= 0.05, "Solid", "Hollow"))
 
-# 3. 绘图
+# 3. Plotting
 pd <- position_dodge(width = 0.7)
 p <- ggplot(plot_data, aes(x = period, y = tau_star, group = cluster, color = display_color)) +
-  # 画误差线 (1.96 * SE)
+  # Draw the error bars (1.96 * SE)
   geom_errorbar(aes(ymin = tau_star - 1.96 * tau_star_se, 
                     ymax = tau_star + 1.96 * tau_star_se), 
                 width = 0.4, position = pd, alpha = 0.8) +
-  # 画连线：只连接 d0, d7, d15。过滤掉 ALL 数据
+  # Draw the connecting lines: only d0, d7 and d15 are linked, with ALL filtered out
   geom_line(data = filter(plot_data, period != "ALL"), 
             position = pd, size = 0.8) +
-  # 画点：根据显著性判断实心/空心
-  # shape 21 是可以填充的圆圈，16 是实心圆
+  # Draw the points: filled or open depending on significance
+  # shape 21 is a fillable circle and 16 is a solid circle
   geom_point(aes(shape = is_solid, fill = display_color), 
              position = pd, size = 2.5, stroke = 1) +
-  # 分面：2行5列
+  # Faceting: 2 rows by 5 columns
   facet_wrap(~GWAS, nrow = 2, ncol = 5, scales = "free_y") +
-  # 设定颜色：包含7个cluster色和灰色
+  # Set the colors: the seven cluster colors plus grey
   scale_color_manual(values = c(cluster_colors, "NotSig" = "gray80")) +
   scale_fill_manual(values = c(cluster_colors, "NotSig" = "gray80")) +
-  # 设定形状：Solid 对应实心(21带填充)，Hollow 对应空心(21不填充/白色填充)
+  # Set the shapes: Solid maps to a filled point (21 with fill) and Hollow to an open point (21 unfilled/white fill)
   scale_shape_manual(values = c("Solid" = 21, "Hollow" = 1)) +
-  # 辅助线：y=0
+  # Reference line: y = 0
   geom_hline(yintercept = 0, linetype = "dashed", color = "black", alpha = 0.3) +
-  # 主题修饰
+  # Theme tweaks
   theme_bw(base_size = 16) +
   theme(
     legend.position = "bottom",
@@ -642,11 +642,11 @@ p <- ggplot(plot_data, aes(x = period, y = tau_star, group = cluster, color = di
        color = "Cluster Status",
        shape = "Significance (p < 0.05)")
 
-# 4. 打印图表
+# 4. Print the plot
 print(p)
 
 
-# 如果需要保存
+# Save the plot if needed
 ggsave("outplots/sup5_a_GWAS_tar_star_Forest_Plot.pdf", width = 15, height = 8)
 
 
@@ -654,19 +654,19 @@ target_gwas <- c("WHRadjBMI", "logTG", "IWB", "Liver_fat")
 
 library(patchwork) 
 
-# 2. 定义核心绘图函数
-# 该函数负责：筛选数据、计算对称Y轴、绘制森林图
+# 2. Define the core plotting function
+# This function filters the data, computes a symmetric Y axis and draws the forest plot
 draw_single_gwas <- function(data, target_gwas_name) {
   
-  # A. 数据预处理
+  # A. Data preprocessing
     cluster_colors <- c(
-    "cluster1" = "#2ca02c", # 经典学术绿
-  "cluster2" = "#1b7837", # 深绿       
-  "cluster3" = "#3182bd", # 标准蓝    
-  "cluster4" = "#08519c", # 深蓝      
-  "cluster5" = "#b10026", # 科学红     
-  "cluster6" = "#feb24c", # 柔和橙黄  
-  "cluster7" = "#f768a1"  # 玫瑰粉红   
+    "cluster1" = "#2ca02c", # classic academic green
+  "cluster2" = "#1b7837", # dark green       
+  "cluster3" = "#3182bd", # standard blue    
+  "cluster4" = "#08519c", # dark blue      
+  "cluster5" = "#b10026", # scientific red     
+  "cluster6" = "#feb24c", # soft orange-yellow  
+  "cluster7" = "#f768a1"  # rose pink   
 )
   cluster_input_list <- list(
     WHRadjBMI = c("cluster2","cluster3","cluster5"),
@@ -677,40 +677,40 @@ draw_single_gwas <- function(data, target_gwas_name) {
   gwas_data <- data %>%
     filter(GWAS == target_gwas_name) %>%
     mutate(period = factor(period, levels = c("ALL", "d0", "d7", "d15"))) %>%
-    # 只保留在该 GWAS 中有显著表现的 cluster
+    # Keep only the clusters with a significant signal in this GWAS
     group_by(cluster) %>%
     filter(cluster %in% cluster_input_list[[target_gwas_name]]) %>%
     ungroup() %>%
-    # 填充逻辑：显著为实心，不显著为空心
+    # Fill logic: significant points are filled and non-significant ones are open
     mutate(point_fill = ifelse(tau_star_p <= 0.05, cluster, "Hollow"))
   
-  # B. 计算对称 Y 轴范围
-  # 找到误差线达到的最大绝对值
+  # B. Compute the symmetric Y axis range
+  # Find the largest absolute value reached by the error bars
   max_abs_y <- gwas_data %>%
     summarise(val = max(c(abs(tau_star + 1.96 * tau_star_se), 
                           abs(tau_star - 1.96 * tau_star_se)), na.rm = TRUE)) %>%
     pull(val)
   
-  y_limit <- max_abs_y * 1.1 # 留 10% 的边距
+  y_limit <- max_abs_y * 1.1 # leave a 10% margin
   
-  # C. 绘图
+  # C. Plotting
   pd <- position_dodge(width = 0.5)
   
   p <- ggplot(gwas_data, aes(x = period, y = tau_star, group = cluster, color = cluster)) +
-    # 森林图误差线
+    # Forest-plot error bars
     geom_errorbar(aes(ymin = tau_star - 1.96 * tau_star_se, 
                       ymax = tau_star + 1.96 * tau_star_se), 
                   width = 0.2, position = pd) +
-    # 连线 (不连接 ALL)
+    # Connecting lines (ALL excluded)
     geom_line(data = filter(gwas_data, period != "ALL"), position = pd, size = 0.8) +
-    # 点 (shape 21 支持 fill)
+    # Points (shape 21 supports fill)
     geom_point(aes(fill = point_fill), shape = 21, size = 3, stroke = 1, position = pd) +
-    # 对称 Y 轴
+    # Symmetric Y axis
     scale_y_continuous(limits = c(-y_limit, y_limit)) +
-    # 颜色映射
+    # Color mapping
     scale_color_manual(values = cluster_colors) +
     scale_fill_manual(values = c(cluster_colors, "Hollow" = "white")) +
-    # 辅助线与主题
+    # Reference line and theme
     geom_hline(yintercept = 0, linetype = "dashed", color = "gray60") +
     theme_bw(base_size = 16) +
     labs(title = target_gwas_name, x = NULL, y = "tau_star") +
@@ -723,24 +723,24 @@ draw_single_gwas <- function(data, target_gwas_name) {
   return(p)
 }
 
-# 3. 分别生成三个图
+# 3. Generate the individual plots
 p1 <- draw_single_gwas(clu_tau_results, "WHRadjBMI")
 p2 <- draw_single_gwas(clu_tau_results, "IWB")
 p3 <- draw_single_gwas(clu_tau_results, "Liver_fat")
 p4 <- draw_single_gwas(clu_tau_results, "FIadj") 
 
-# 4. 使用 patchwork 合并图片
-# / 表示垂直堆叠，guides = 'collect' 表示合并图例
+# 4. Combine the plots with patchwork
+# / stacks the plots vertically and guides = 'collect' merges the legends
 combined_plot <- (p1 / p2 / p3 / p4) + 
   plot_layout(guides = 'collect')
 
-# 5. 显示结果
+# 5. Display the result
 print(combined_plot)
 ggsave("outplots/fig5_d_clu.tau.4gwas.forest.plots.pdf", combined_plot, width = 5, height = 8)
 ```
 
 
-fig5_d 主图主要呈现WHRadjBMI/IWB/liver_fat三个GWAS对应tau_star的变化，且只要显著的cluster
+fig5_d Main panels show tau_star changes for the three GWAS WHRadjBMI/IWB/liver_fat, restricted to significant clusters
 ```{r}
 library(dplyr)
 library(stringr)
@@ -772,54 +772,54 @@ write.table(clu_tau_results_ac,file = "output/clu_tau_results_ac.tsv",row.names 
 
 
 
-# 2. 数据预处理
-# 定义颜色
+# 2. Data preprocessing
+# Define colors
 cluster_colors <- c(
-    "cluster1" = "#2ca02c", # 经典学术绿
-  "cluster2" = "#1b7837", # 深绿       
-  "cluster3" = "#3182bd", # 标准蓝    
-  "cluster4" = "#08519c", # 深蓝      
-  "cluster5" = "#b10026", # 科学红     
-  "cluster6" = "#feb24c", # 柔和橙黄  
-  "cluster7" = "#f768a1"  # 玫瑰粉红   
+    "cluster1" = "#2ca02c", # classic academic green
+  "cluster2" = "#1b7837", # dark green       
+  "cluster3" = "#3182bd", # standard blue    
+  "cluster4" = "#08519c", # dark blue      
+  "cluster5" = "#b10026", # scientific red     
+  "cluster6" = "#feb24c", # soft orange-yellow  
+  "cluster7" = "#f768a1"  # rose pink   
 )
 
 plot_data <- clu_tau_results_ac %>%
-  # 确保 period 顺序
+  # Ensure the period order
   mutate(period = factor(period, levels = c("ALL", "d0", "d7", "d15"))) %>%
-  # 逻辑1：判断每个 GWAS 内的每个 cluster 是否有任何一个 period 显著
+  # Logic 1: check whether any period is significant for each cluster within each GWAS
   group_by(GWAS, cluster) %>%
   mutate(any_sig = any(tau_star_p <= 0.05)) %>%
   ungroup() %>%
-  # 逻辑2：根据 any_sig 分配颜色，如果不显著则设为灰色
+  # Logic 2: assign colors according to any_sig, falling back to grey when not significant
   mutate(display_color = ifelse(any_sig, cluster, "NotSig")) %>%
-  # 逻辑3：判断点是否实心 (p <= 0.05 为实心)
+  # Logic 3: decide whether the point is filled (p <= 0.05 is filled)
   mutate(is_solid = ifelse(tau_star_p <= 0.05, "Solid", "Hollow"))
 
-# 3. 绘图
+# 3. Plotting
 pd <- position_dodge(width = 0.7)
 p <- ggplot(plot_data, aes(x = period, y = tau_star, group = cluster, color = display_color)) +
-  # 画误差线 (1.96 * SE)
+  # Draw the error bars (1.96 * SE)
   geom_errorbar(aes(ymin = tau_star - 1.96 * tau_star_se, 
                     ymax = tau_star + 1.96 * tau_star_se), 
                 width = 0.4, position = pd, alpha = 0.8) +
-  # 画连线：只连接 d0, d7, d15。过滤掉 ALL 数据
+  # Draw the connecting lines: only d0, d7 and d15 are linked, with ALL filtered out
   geom_line(data = filter(plot_data, period != "ALL"), 
             position = pd, size = 0.8) +
-  # 画点：根据显著性判断实心/空心
-  # shape 21 是可以填充的圆圈，16 是实心圆
+  # Draw the points: filled or open depending on significance
+  # shape 21 is a fillable circle and 16 is a solid circle
   geom_point(aes(shape = is_solid, fill = display_color), 
              position = pd, size = 2.5, stroke = 1) +
-  # 分面：2行5列
+  # Faceting: 2 rows by 5 columns
   facet_wrap(~GWAS, nrow = 2, ncol = 5, scales = "free_y") +
-  # 设定颜色：包含7个cluster色和灰色
+  # Set the colors: the seven cluster colors plus grey
   scale_color_manual(values = c(cluster_colors, "NotSig" = "gray80")) +
   scale_fill_manual(values = c(cluster_colors, "NotSig" = "gray80")) +
-  # 设定形状：Solid 对应实心(21带填充)，Hollow 对应空心(21不填充/白色填充)
+  # Set the shapes: Solid maps to a filled point (21 with fill) and Hollow to an open point (21 unfilled/white fill)
   scale_shape_manual(values = c("Solid" = 21, "Hollow" = 1)) +
-  # 辅助线：y=0
+  # Reference line: y = 0
   geom_hline(yintercept = 0, linetype = "dashed", color = "black", alpha = 0.3) +
-  # 主题修饰
+  # Theme tweaks
   theme_bw(base_size = 16) +
   theme(
     legend.position = "bottom",
@@ -833,25 +833,25 @@ p <- ggplot(plot_data, aes(x = period, y = tau_star, group = cluster, color = di
        color = "Cluster Status",
        shape = "Significance (p < 0.05)")
 
-# 4. 打印图表
+# 4. Print the plot
 print(p)
 
 
-# 如果需要保存
+# Save the plot if needed
 ggsave("outplots/sup5_b_GWAS_tar_star_ac_Forest_Plot.pdf", width = 15, height = 8)
 
 
 draw_single_gwas <- function(data, target_gwas_name) {
   
-  # A. 数据预处理
+  # A. Data preprocessing
     cluster_colors <- c(
-    "cluster1" = "#2ca02c", # 经典学术绿
-  "cluster2" = "#1b7837", # 深绿       
-  "cluster3" = "#3182bd", # 标准蓝    
-  "cluster4" = "#08519c", # 深蓝      
-  "cluster5" = "#b10026", # 科学红     
-  "cluster6" = "#feb24c", # 柔和橙黄  
-  "cluster7" = "#f768a1"  # 玫瑰粉红   
+    "cluster1" = "#2ca02c", # classic academic green
+  "cluster2" = "#1b7837", # dark green       
+  "cluster3" = "#3182bd", # standard blue    
+  "cluster4" = "#08519c", # dark blue      
+  "cluster5" = "#b10026", # scientific red     
+  "cluster6" = "#feb24c", # soft orange-yellow  
+  "cluster7" = "#f768a1"  # rose pink   
 )
   cluster_input_list <- list(
     WHRadjBMI = c("cluster3","cluster5","cluster6"),
@@ -862,40 +862,40 @@ draw_single_gwas <- function(data, target_gwas_name) {
   gwas_data <- data %>%
     filter(GWAS == target_gwas_name) %>%
     mutate(period = factor(period, levels = c("ALL", "d0", "d7", "d15"))) %>%
-    # 只保留在该 GWAS 中有显著表现的 cluster
+    # Keep only the clusters with a significant signal in this GWAS
     group_by(cluster) %>%
     filter(cluster %in% cluster_input_list[[target_gwas_name]]) %>%
     ungroup() %>%
-    # 填充逻辑：显著为实心，不显著为空心
+    # Fill logic: significant points are filled and non-significant ones are open
     mutate(point_fill = ifelse(tau_star_p <= 0.05, cluster, "Hollow"))
   
-  # B. 计算对称 Y 轴范围
-  # 找到误差线达到的最大绝对值
+  # B. Compute the symmetric Y axis range
+  # Find the largest absolute value reached by the error bars
   max_abs_y <- gwas_data %>%
     summarise(val = max(c(abs(tau_star + 1.96 * tau_star_se), 
                           abs(tau_star - 1.96 * tau_star_se)), na.rm = TRUE)) %>%
     pull(val)
   
-  y_limit <- max_abs_y * 1.1 # 留 10% 的边距
+  y_limit <- max_abs_y * 1.1 # leave a 10% margin
   
-  # C. 绘图
+  # C. Plotting
   pd <- position_dodge(width = 0.5)
   
   p <- ggplot(gwas_data, aes(x = period, y = tau_star, group = cluster, color = cluster)) +
-    # 森林图误差线
+    # Forest-plot error bars
     geom_errorbar(aes(ymin = tau_star - 1.96 * tau_star_se, 
                       ymax = tau_star + 1.96 * tau_star_se), 
                   width = 0.2, position = pd) +
-    # 连线 (不连接 ALL)
+    # Connecting lines (ALL excluded)
     geom_line(data = filter(gwas_data, period != "ALL"), position = pd, size = 0.8) +
-    # 点 (shape 21 支持 fill)
+    # Points (shape 21 supports fill)
     geom_point(aes(fill = point_fill), shape = 21, size = 3, stroke = 1, position = pd) +
-    # 对称 Y 轴
+    # Symmetric Y axis
     scale_y_continuous(limits = c(-y_limit, y_limit)) +
-    # 颜色映射
+    # Color mapping
     scale_color_manual(values = cluster_colors) +
     scale_fill_manual(values = c(cluster_colors, "Hollow" = "white")) +
-    # 辅助线与主题
+    # Reference line and theme
     geom_hline(yintercept = 0, linetype = "dashed", color = "gray60") +
     theme_bw(base_size = 16) +
     labs(title = target_gwas_name, x = NULL, y = "tau_star") +
@@ -914,17 +914,17 @@ p2 <- draw_single_gwas(clu_tau_results_ac, "logTG")
 p3 <- draw_single_gwas(clu_tau_results_ac, "Liver_fat")
 p4 <- draw_single_gwas(clu_tau_results_ac, "FIadj") 
 
-# 4. 使用 patchwork 合并图片
-# / 表示垂直堆叠，guides = 'collect' 表示合并图例
+# 4. Combine the plots with patchwork
+# / stacks the plots vertically and guides = 'collect' merges the legends
 combined_plot <- (p1 / p2 / p3 / p4) + 
   plot_layout(guides = 'collect')
 
-# 5. 显示结果
+# 5. Display the result
 print(combined_plot)
 ggsave("outplots/fig5_e_clu.tau.ac.4gwas.forest.plots.pdf", combined_plot, width = 5, height = 8)
 
 
-## 这里还需要两个图：一个是H3K27me3信号伴随cluster12357在分化中的变化情况，另一个是H3K27ac信号的变化情况
+## Two additional panels are needed: one showing how H3K27me3 signal changes during differentiation for cluster12357, and one showing the H3K27ac signal changes
 
 
 all.clu.coverage <- data.frame()
@@ -949,25 +949,25 @@ for (i in c(1,2,3,5,7)){
 
 
 cluster_colors <- c(
-    "cluster1" = "#2ca02c", # 经典学术绿
-  "cluster2" = "#1b7837", # 深绿       
-  "cluster3" = "#3182bd", # 标准蓝    
-  "cluster4" = "#08519c", # 深蓝      
-  "cluster5" = "#b10026", # 科学红     
-  "cluster6" = "#feb24c", # 柔和橙黄  
-  "cluster7" = "#f768a1"  # 玫瑰粉红   
+    "cluster1" = "#2ca02c", # classic academic green
+  "cluster2" = "#1b7837", # dark green       
+  "cluster3" = "#3182bd", # standard blue    
+  "cluster4" = "#08519c", # dark blue      
+  "cluster5" = "#b10026", # scientific red     
+  "cluster6" = "#feb24c", # soft orange-yellow  
+  "cluster7" = "#f768a1"  # rose pink   
 )
 
 df <- all.clu.coverage
 df$period <- factor(df$period,c("d0","d7","d15"))
 
-# 4. 绘制 H3K27me3 图表 (实线外框)
+# 4. Draw the H3K27me3 panel (solid outline)
 p1 <- ggplot(df %>% filter(chip == "H3K27me3"), aes(x = period, y = mean, fill = cluster)) +
 
   geom_bar(
     stat = "identity",
     position = position_dodge(width = 0.8),
-    color = "black",      # 实线外框
+    color = "black",      # solid outline
     linetype = "solid",
     width = 0.8,linewidth=1.1
   ) +
@@ -975,37 +975,37 @@ p1 <- ggplot(df %>% filter(chip == "H3K27me3"), aes(x = period, y = mean, fill =
    coord_cartesian(ylim = c(0.5, 0.9)) +
   labs(title = "H3K27me3", y = "Mean Coverage", x = NULL) +
   theme_classic(base_size = 16) +
-  theme(legend.position = "none") # 暂时隐藏左图图例
+  theme(legend.position = "none") # temporarily hide the legend of the left panel
 
-# 5. 绘制 H3K27ac 图表 (虚线外框)
+# 5. Draw the H3K27ac panel (dashed outline)
 p2 <- ggplot(df %>% filter(chip == "H3K27ac"), aes(x = period, y = mean, fill = cluster)) +
 
   geom_bar(
     stat = "identity",
     position = position_dodge(width = 0.8),
-    color = "black",      # 黑色外框
-    linetype = "dashed",   # 虚线外框
+    color = "black",      # black outline
+    linetype = "dashed",   # dashed outline
     width = 0.8,linewidth=1.1
   ) +
   scale_fill_manual(values = cluster_colors) +
   labs(title = "H3K27ac", y = NULL, x = NULL) +
   theme_classic(base_size = 16)
 
-# 6. 使用 patchwork 拼接图表
-# collect_guides = "collect" 可以把两个图的图例合并到一个
+# 6. Combine the panels with patchwork
+# collect_guides = "collect" merges the legends of the two plots into one
 combined_plot <- p1 + p2 + 
   plot_layout(guides = "collect") & 
   theme(legend.position = "right")
 
-# 7. 输出图表
+# 7. Export the figure
 print(combined_plot)
 ggsave("outplots/fig5_d.K27me3&ac.allclu.barplots.pdf",combined_plot,width=10,height=4)
 
 ```
 
 
-fig5_e 以WHRadjBMI为例，用两个图展示数量和delta富集水平
-用upset图展示未发生明显变化ROIs/me3明显变化ROIs/ac明显变化ROIs分别对应clump后的SNPs有多少
+fig5_e Using WHRadjBMI as an example, two panels show the counts and the delta enrichment levels
+UpSet plot showing how many clumped SNPs correspond to ROIs with no marked change, ROIs with a marked me3 change and ROIs with a marked ac change
 ```{r}
 
 clu5.roi <- roi_info.split[roi_info.split$cluster == 5,c(1,2,3,4)]
@@ -1035,15 +1035,15 @@ inter_data <- data.frame(
   ac_status = inter[,12]
 )
 
-# 2. 将分类变量转换为二进制矩阵
-# 我们为 me3 和 ac 的每种状态创建一个 0/1 列
+# 2. Convert the categorical variables into a binary matrix
+# A 0/1 column is created for each state of me3 and ac
 upset_input <- data.frame(
   rsid = inter_data$rsid,
-  # me3 的三种状态
+  # the three me3 states
   me3_reduced = as.integer(inter_data$me3_status == "reduced"),
   me3_keeped  = as.integer(inter_data$me3_status == "keeped"),
   me3_rised   = as.integer(inter_data$me3_status == "rised"),
-  # ac 的三种状态
+  # the three ac states
   ac_reduced  = as.integer(inter_data$ac_status == "reduced"),
   ac_keeped   = as.integer(inter_data$ac_status == "keeped"),
   ac_rised    = as.integer(inter_data$ac_status == "rised")
@@ -1051,31 +1051,31 @@ upset_input <- data.frame(
 
 sets_to_show <- c("me3_keeped","ac_keeped","me3_reduced", "ac_rised", "me3_rised",   "ac_reduced" )
 
-pdf("outplots/fig5_e.upset_plot_final.pdf", width = 7, height = 6) # 这里的单位是英寸
+pdf("outplots/fig5_e.upset_plot_final.pdf", width = 7, height = 6) # the units are inches
 library(UpSetR)
-# 绘制 UpSet 图
+# Draw the UpSet plot
 upset(upset_input, 
       sets = sets_to_show,
-      keep.order = TRUE,               # 保持上面定义的集合顺序
-      main.bar.color = "steelblue",    # 上方柱状图颜色
-      sets.bar.color = "gray30",       # 左侧柱状图颜色
-      mb.ratio = c(0.7, 0.3), # 调节上方柱图与下方点阵的比例
-      order.by = "freq",               # 按交集频率排序
+      keep.order = TRUE,               # keep the set order defined above
+      main.bar.color = "steelblue",    # color of the top bar chart
+      sets.bar.color = "gray30",       # color of the left bar chart
+      mb.ratio = c(0.7, 0.3), # adjust the ratio between the top bars and the bottom matrix
+      order.by = "freq",               # sort by intersection frequency
       queries = list(
         list(query = intersects, params = list("me3_reduced", "ac_rised"), color = "#be0f2d", active = T),
         list(query = intersects, params = list("me3_reduced", "ac_keeped"), color = "#E6A333", active = T),
         list(query = intersects, params = list("me3_keeped", "ac_rised"), color = "#D6604D", active = T)
       ),
-      # 依次为：柱状图轴标题, 轴刻度标签, 条形图轴标题, 条形图刻度标签, 集合名称, 柱子上的数字
-      text.scale = c(2, 1.8, 1.8, 2, 1.8, 1.8), # 调节字体大小
-      number.angles = 0,               # 柱状图数字角度
-      point.size = 4,                # 点的大小
-      line.size = 1.2                    # 连接线粗细
+      # in order: bar chart axis title, axis tick labels, set bar axis title, set bar tick labels, set names, numbers on the bars
+      text.scale = c(2, 1.8, 1.8, 2, 1.8, 1.8), # adjust the font size
+      number.angles = 0,               # angle of the numbers on the bars
+      point.size = 4,                # point size
+      line.size = 1.2                    # line thickness
 )
 dev.off()
 
 
-# 接下来要画一个WHRadjBMI的柱状图来直接表示delta tau*
+# Next, draw a WHRadjBMI bar chart that directly shows delta tau*
 
 
 input <- clu_tau_results[clu_tau_results$GWAS == "WHRadjBMI",]
@@ -1095,19 +1095,19 @@ plot_df <- data.frame(
 )
 plot_df$period <- factor(plot_df$period,c("d7-d0","d15-d7"))
 
-# 3. 设定颜色向量
+# 3. Define the color vector
 cluster_colors <- c(
   "cluster1" = "#084594", "cluster2" = "#2171b5", "cluster3" = "#6baed6", 
   "cluster4" = "#bdd7e7", "cluster5" = "#b10026", "cluster6" = "#e31a1c", 
   "cluster7" = "#feb24c"
 )
 
-# 4. 编写绘图函数，增加 linetype 参数
+# 4. Write the plotting function with a linetype argument
 draw_plot <- function(data, title_name, lt) {
   ggplot(data, aes(x = period, y = delta, fill = cluster)) +
-    # color = "black" 设置边框颜色
-    # linetype 设置线条类型 (1为实线，2为虚线)
-    # size 设置边框粗细
+    # color = "black" sets the border color
+    # linetype sets the line type (1 = solid, 2 = dashed)
+    # size sets the border thickness
     geom_bar(stat = "identity", 
              position = "dodge", 
              color = "black", 
@@ -1122,18 +1122,18 @@ draw_plot <- function(data, title_name, lt) {
     )
 }
 
-# 5. 分别生成两张图
-# 第一张图：H3K27me3 Defined，使用实线 (linetype = 1)
+# 5. Generate the two plots
+# First plot: H3K27me3 Defined with a solid line (linetype = 1)
 p1 <- draw_plot(subset(plot_df, chip == "H3K27me3 Defined"), "H3K27me3 Defined", 1)
 
-# 第二张图：H3K27ac Masked，使用虚线 (linetype = 2)
+# Second plot: H3K27ac Masked with a dashed line (linetype = 2)
 p2 <- draw_plot(subset(plot_df, chip == "H3K27ac Masked"), "H3K27ac Masked", 2)
 
-# 6. 使用 patchwork 进行横向拼接
-# 使用 collect 合并图例，并确保图例里的边框也是一致的
+# 6. Combine the plots side by side with patchwork
+# Merge the legends with collect and keep the outlines inside the legends consistent too
 combined_plot <- p1 + p2 + plot_layout(guides = 'collect')
 
-# 7. 显示图片
+# 7. Display the figure
 print(combined_plot)
 
 ggsave("outplots/fig5_f.WHRadjBMI.delta.taustar.barplots.pdf", combined_plot, width = 7, height = 4)
@@ -1190,56 +1190,56 @@ all.eqtl.enrichment.results[all.eqtl.enrichment.results$eqtl == "Testis",]
 df.plots <- all.eqtl.enrichment.results[all.eqtl.enrichment.results$eqtl %in% c("Adipose_Visceral_Omentum","Adipose_Subcutaneous","Whole_Blood"),]
 
 
-# 1. 准备数据 (假设你的数据框叫 df.plots)
-# 这里过滤出你指定的三个 eqtl
+# 1. Prepare the data (assuming your data frame is named df.plots)
+# Keep only the three eqtl you specified
 target_eqtls <- c("Adipose_Visceral_Omentum", "Adipose_Subcutaneous", "Whole_Blood")
 df_filtered <- df.plots %>% 
   filter(eqtl %in% target_eqtls)
 
-# 2. 预处理：固定因子顺序，确保颜色和横轴顺序正确
+# 2. Preprocessing: fix the factor order so that the colors and the x-axis order are correct
 df_filtered <- df_filtered %>%
   mutate(
-    # 强制 eqtl 顺序，对应后续的颜色顺序
+    # Force the eqtl order to match the color order below
     eqtl = factor(eqtl, levels = target_eqtls),
-    # 强制 cluster 顺序
+    # Force the cluster order
     cluster = factor(cluster, levels = paste0("cluster", 1:7)),
-    # 显著性判断
+    # Significance call
     is_significant = ifelse(pval < 0.05, "Significant", "Non-significant")
   )
 
 
-# 3. 定义颜色向量
-# 顺序对应：Visceral(红), Subcutaneous(橙), Whole_Blood(蓝)
+# 3. Define the color vector
+# Order: Visceral (red), Subcutaneous (orange), Whole_Blood (blue)
 my_colors <- c(
   "Adipose_Visceral_Omentum" = "#E64B35", 
   "Adipose_Subcutaneous"     = "#F39B7F", 
   "Whole_Blood"              = "#3C5488"
 )
 
-# 4. 绘图
+# 4. Plotting
 p <- ggplot(df_filtered, aes(x = cluster, y = or, color = eqtl, group = eqtl)) +
-  # 基准线
+  # Reference line
   geom_hline(yintercept = 1, linetype = "dashed", color = "gray60") +
-  # 误差棒 (森林图须)
+  # Error bars (required for a forest plot)
   geom_errorbar(aes(ymin = lower, ymax = upper), 
                 width = 0.4, 
                 position = position_dodge(0.6),
                 alpha = 1) +
-  # 趋势折线
+  # Trend line
 #   geom_line(position = position_dodge(0.6), 
 #             size = 0.8, 
 #             alpha = 0.6) +
-  # OR点：显著为实心(16)，不显著为空心(21)
-  # 使用 shape=21 可以通过 fill 控制内部，但这里简单化使用 16 和 1
+  # OR points: filled (16) when significant and open (21) when not
+  # shape = 21 would allow the interior to be controlled via fill, but 16 and 1 are used here for simplicity
   geom_point(aes(shape = is_significant), 
              size = 3.5, 
              position = position_dodge(0.6),
-             stroke = 1) + # stroke 控制空心圆的线条粗细
-  # 手动设置形状
+             stroke = 1) + # stroke controls the line thickness of the open circles
+  # Set the shape manually
   scale_shape_manual(values = c("Significant" = 16, "Non-significant" = 1)) +
-  # 手动设置颜色
+  # Set the colors manually
   scale_color_manual(values = my_colors) +
-  # 坐标轴和主题美化
+  # Axis and theme styling
   theme_classic(base_size = 16) +
   labs(
     title = "",
@@ -1254,7 +1254,7 @@ p <- ggplot(df_filtered, aes(x = cluster, y = or, color = eqtl, group = eqtl)) +
     axis.text.y = element_text(color = "black"),
     legend.position = "right"
   )
-# 如果需要保存图片
+# Save the figure if needed
 ggsave("outplots/fig5_d.eqtl_forest_plot.pdf",p, width = 10, height = 5)
 
 
@@ -1324,13 +1324,13 @@ for (i in 1:7){
 
 
 
-fig5_g locuszoom图对marker基因进行可视化
+fig5_g locuszoom plot to visualize marker genes
 ```{r}
 library(locuszoomr)
-library(EnsDb.Hsapiens.v75) # 基因注释库
+library(EnsDb.Hsapiens.v75) # gene annotation database
 
-# 1. 准备你的数据 (示例 dataframe)
-# 必须包含: chromosome, position, p
+# 1. Prepare your data (example dataframe)
+# Must contain: chromosome, position, p
 my_data <- fread("/storage/main/projects/bigcgpu-prj/zhangtianpei/Project/GWAS/ma/WHRadjBMI.ma", header=TRUE)
 my_data <- data.frame(
     SNP=my_data$SNP,
@@ -1342,18 +1342,18 @@ my_data <- data.frame(
 
 
 
-# 2. 定义你想绘制的区域
-# 可以根据最显著的 SNP (Index SNP) 来定义
+# 2. Define the region you want to plot
+# This can be defined around the most significant SNP (index SNP)
 loc <- locus(data = my_data, 
-             gene = 'MLXIPL',   # 或者使用 seqname, xint 指定范围
-             flank = 5,    # 左右延伸 500kb
+             gene = 'MLXIPL',   # or specify the range with seqname and xint
+             flank = 5,    # extend 500 kb on each side
              ens_db = EnsDb.Hsapiens.v75)
 
-# 3. 添加 LD 信息 (可选，需要联网从 LDlink 获取)
-# loc <- link_LD(loc, token = "你的LDlink_Token") 
+# 3. Add LD information (optional; requires internet access to retrieve from LDlink)
+# loc <- link_LD(loc, token = "YOUR_LDlink_TOKEN") 
 
 
-# 4. 绘图
+# 4. Plotting
 
 pdf("outplots/fig5_g.locuszoom.pdf",width=10,height=10)
 locus_plot(loc)

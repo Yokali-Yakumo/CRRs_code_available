@@ -3,9 +3,9 @@
 Reproduces experimental/schematic panels of main Figure 5: CEBPA locus track and nile-red staining result plots. Inputs (examples): output/fig5_c.nile_red.stain.Results.csv. Outputs: outplots/fig5_*.pdf.
 --> 
 
-fig5 实验用图
+fig5 experimental panels
 
-# fig5_a.CEBPA 的轨道图
+# fig5_a.CEBPA track plot
 ```{r}
 
 #!/usr/bin/env Rscript
@@ -25,7 +25,7 @@ fig5 实验用图
 
 
 ## ------------------------------------------------------------
-## 1. 安装依赖：首次运行时执行
+## 1. Install dependencies: run once on first use
 ## ------------------------------------------------------------
 
 # if (!requireNamespace("BiocManager", quietly = TRUE)) {
@@ -48,7 +48,7 @@ fig5 实验用图
 
 
 ## ------------------------------------------------------------
-## 2. 加载依赖
+## 2. Load dependencies
 ## ------------------------------------------------------------
 
 suppressPackageStartupMessages({
@@ -63,7 +63,7 @@ suppressPackageStartupMessages({
 
 
 ## ------------------------------------------------------------
-## 3. 基础参数
+## 3. Basic parameters
 ## ------------------------------------------------------------
 
 genome_name <- "hg19"
@@ -74,8 +74,8 @@ plot_to   <- 33796000L
 
 
 ## ------------------------------------------------------------
-## 4. 输入文件
-## 请替换为自己的实际路径
+## 4. Input files
+## Replace with your own actual paths
 ## ------------------------------------------------------------
 
 bw1_file  <- "~/Project/chromHMM/bamsubtract/H3K27me3_15d-7d.log2.50bp.CPM.bw"
@@ -85,7 +85,7 @@ bed1_file <- "../roi_info.split.bed"
 bed2_file <- "../sgRNA.bed"
 
 
-## 轨道名称
+## Track names
 bw1_name  <- "delta H3K27me3"
 bw2_name  <- "delta H3K27ac"
 
@@ -93,12 +93,12 @@ bed1_name <- "CRRs"
 bed2_name <- "sgRNA"
 
 
-## 输出文件
+## Output file
 output_pdf <- "outplots/fig5/fig5_a.CEBPA.gviz.pdf"
 
 
 ## ------------------------------------------------------------
-## 5. 检查输入文件
+## 5. Check input files
 ## ------------------------------------------------------------
 
 input_files <- c(
@@ -113,7 +113,7 @@ missing_files <- input_files[!file.exists(input_files)]
 if (length(missing_files) > 0L) {
     stop(
         paste0(
-            "以下输入文件不存在：\n",
+            "The following input files do not exist:\n",
             paste(missing_files, collapse = "\n")
         )
     )
@@ -121,7 +121,7 @@ if (length(missing_files) > 0L) {
 
 
 ## ------------------------------------------------------------
-## 6. 定义绘图区间
+## 6. Define the plotting region
 ## ------------------------------------------------------------
 
 plot_region <- GRanges(
@@ -134,7 +134,7 @@ plot_region <- GRanges(
 
 
 ## ------------------------------------------------------------
-## 7. BED读取函数
+## 7. BED reading function
 ## ------------------------------------------------------------
 
 read_bed_region <- function(
@@ -148,7 +148,7 @@ read_bed_region <- function(
         format = "BED"
     )
 
-    ## 如果BED使用19而不是chr19，则只修正当前染色体名称
+    ## If the BED file uses 19 instead of chr19, rename only the current chromosome
     if (!chromosome %in% seqlevels(bed_gr)) {
 
         chromosome_without_chr <- sub(
@@ -174,15 +174,15 @@ read_bed_region <- function(
     if (!chromosome %in% seqlevels(bed_gr)) {
         stop(
             paste0(
-                "BED文件中没有找到染色体 ",
+                "Chromosome not found in BED file ",
                 chromosome,
-                "：",
+                ": ",
                 bed_file
             )
         )
     }
 
-    ## 只保留当前绘图区间
+    ## Keep only the current plotting region
     bed_gr <- subsetByOverlaps(
         bed_gr,
         region,
@@ -192,7 +192,7 @@ read_bed_region <- function(
     if (length(bed_gr) == 0L) {
         stop(
             paste0(
-                "BED文件在绘图区间内没有任何重叠区域：\n",
+                "No overlapping regions found in the BED file within the plotting region:\n",
                 bed_file
             )
         )
@@ -216,7 +216,7 @@ bed2_gr <- read_bed_region(
 
 
 ## ------------------------------------------------------------
-## 8. 创建基因组坐标轴
+## 8. Create the genome coordinate axis
 ## ------------------------------------------------------------
 
 axis_track <- GenomeAxisTrack(
@@ -231,7 +231,7 @@ axis_track <- GenomeAxisTrack(
 
 
 ## ------------------------------------------------------------
-## 9. 创建hg19基因注释轨道
+## 9. Create the hg19 gene annotation track
 ## ------------------------------------------------------------
 
 txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
@@ -258,8 +258,8 @@ gene_track <- GeneRegionTrack(
 
 
 ## ------------------------------------------------------------
-## 10. 将Entrez Gene ID转换为gene symbol
-## TxDb本身通常只保存Entrez Gene ID
+## 10. Convert Entrez Gene IDs to gene symbols
+## TxDb usually stores only Entrez Gene IDs
 ## ------------------------------------------------------------
 
 gene_ids <- as.character(gene(gene_track))
@@ -289,7 +289,7 @@ if (any(valid_gene_ids)) {
     )
 }
 
-## 如果没有找到symbol，则保留原始gene ID
+## If no symbol is found, keep the original gene ID
 missing_symbols <- (
     is.na(gene_symbols) |
     !nzchar(gene_symbols)
@@ -301,7 +301,7 @@ symbol(gene_track) <- gene_symbols
 
 
 ## ------------------------------------------------------------
-## 11. 创建BigWig信号轨道
+## 11. Create BigWig signal tracks
 ## ------------------------------------------------------------
 
 bw1_track <- DataTrack(
@@ -342,7 +342,7 @@ bw2_track <- DataTrack(
 
 
 ## ------------------------------------------------------------
-## 12. 创建BED色块轨道
+## 12. Create BED block tracks
 ## ------------------------------------------------------------
 
 make_bed_track <- function(
@@ -351,7 +351,7 @@ make_bed_track <- function(
     track_color
 ) {
 
-    ## 如果BED存在第4列name，则将其保留为区域ID
+    ## If the BED file has a fourth column (name), keep it as the region ID
     if ("name" %in% colnames(mcols(bed_gr))) {
 
         region_ids <- as.character(
@@ -402,7 +402,7 @@ bed2_track <- make_bed_track(
 
 
 ## ------------------------------------------------------------
-## 13. 组合轨道
+## 13. Combine tracks
 ## ------------------------------------------------------------
 
 track_list <- list(
@@ -414,10 +414,10 @@ track_list <- list(
     bed1_track
 )
 
-## 各轨道相对高度
+## Relative height of each track
 track_sizes <- c(
-    1.0,   # 坐标轴
-    1.4,   # 基因
+    1.0,   # Coordinate axis
+    1.4,   # Genes
     0.6,    # BED 2
     2.0,   # BigWig 1
     2.0,   # BigWig 2
@@ -426,7 +426,7 @@ track_sizes <- c(
 
 
 ## ------------------------------------------------------------
-## 14. 绘图函数
+## 14. Plotting function
 ## ------------------------------------------------------------
 
 draw_gviz_tracks <- function() {
@@ -438,7 +438,7 @@ draw_gviz_tracks <- function() {
         to                   = plot_to,
         sizes                = track_sizes,
 
-        ## 每个基因只显示最长转录本
+        ## Show only the longest transcript per gene
         collapseTranscripts  = "longest",
 
         transcriptAnnotation = "symbol",
@@ -469,7 +469,7 @@ draw_gviz_tracks <- function() {
 
 
 ## ------------------------------------------------------------
-## 15. 输出PDF
+## 15. Export PDF
 ## ------------------------------------------------------------
 
 pdf(
@@ -484,14 +484,14 @@ draw_gviz_tracks()
 dev.off()
 
 message(
-    "绘图完成：",
+    "Plot complete: ",
     normalizePath(output_pdf)
 )
 
 ```
 
 
-# fig5_d.染色脂滴定量统计图
+# fig5_d. Nile Red lipid droplet quantification
 ```{r}
 
 library(dplyr)
@@ -499,7 +499,7 @@ library(ggplot2)
 
 df <- read.table(file = "output/fig5_c.nile_red.stain.Results.csv", header = TRUE, sep = ",", stringsAsFactors = FALSE)
 
-# 设置组别顺序，并确保测量值是数值型
+# Set the group order and ensure the measurements are numeric
 df <- df %>%
   mutate(
     category = factor(
@@ -509,7 +509,7 @@ df <- df %>%
     Percentage_Area = as.numeric(Percentage_Area)
   )
 
-# 计算sgNC的均值
+# Compute the mean of sgNC
 sgNC_mean <- df %>%
   dplyr::filter(category == "sgNC") %>%
   summarise(mean_value = mean(Percentage_Area, na.rm = TRUE)) %>%
@@ -545,7 +545,7 @@ summary_df <- df_normalized %>%
 summary_df
 
 p <- ggplot() +
-  # 各组均值柱
+  # Mean bars per group
   geom_col(
     data = summary_df,
     aes(
@@ -557,7 +557,7 @@ p <- ggplot() +
     color = NA
   ) +
 
-  # 均值 ± SEM
+  # Mean +/- SEM
   geom_errorbar(
     data = summary_df,
     aes(
@@ -570,7 +570,7 @@ p <- ggplot() +
     color = "black"
   ) +
 
-  # 归一化后的每张图像数据点
+  # Per-image data points after normalization
   geom_jitter(
     data = df_normalized,
     aes(

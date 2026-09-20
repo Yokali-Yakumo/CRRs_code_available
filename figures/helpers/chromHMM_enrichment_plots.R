@@ -1,7 +1,7 @@
 
-<!--
-Helper: plotting functions for chromHMM-state enrichment heatmaps from an enrichment table (log2 fold-enrichment and FDR).
---> 
+#
+# Helper: plotting functions for chromHMM-state enrichment heatmaps from an enrichment table (log2 fold-enrichment and FDR).
+#
 library(ggplot2)
 library(dplyr)
 library(scales)
@@ -38,7 +38,7 @@ plot_chromHMM_enrichment <- function(
     high.color = "#980000"
 ) {
 
-  ## 1. 检查必要列
+  ## 1. Check required columns
   required.columns <- c(
     "Time",
     "Cluster",
@@ -54,7 +54,7 @@ plot_chromHMM_enrichment <- function(
 
   if (length(missing.columns) > 0) {
     stop(
-      "输入数据缺少以下列：",
+      "The input data is missing the following columns: ",
       paste(missing.columns, collapse = ", ")
     )
   }
@@ -62,10 +62,10 @@ plot_chromHMM_enrichment <- function(
   if (!is.numeric(color.limit) ||
       length(color.limit) != 1 ||
       color.limit <= 0) {
-    stop("color.limit必须是大于0的单个数值。")
+    stop("color.limit must be a single numeric value greater than 0.")
   }
 
-  ## 2. 清理字符
+  ## 2. Clean character columns
   plot.data <- enrichment.data %>%
     mutate(
       Time = trimws(as.character(Time)),
@@ -75,8 +75,8 @@ plot_chromHMM_enrichment <- function(
       FDR_plot = as.numeric(.data[[fdr.col]])
     )
 
-  ## 3. 自动获得cluster顺序
-  ## 根据cluster名称末尾数字进行自然排序
+  ## 3. Derive the cluster order automatically
+  ## Natural sort on the trailing number of the cluster name
   if (is.null(cluster.order)) {
 
     cluster.values <- unique(plot.data$Cluster)
@@ -100,7 +100,7 @@ plot_chromHMM_enrichment <- function(
     }
   }
 
-  ## 4. 时间点顺序
+  ## 4. Time-point order
   observed.times <- unique(plot.data$Time)
 
   time.order <- c(
@@ -108,7 +108,7 @@ plot_chromHMM_enrichment <- function(
     setdiff(observed.times, time.order)
   )
 
-  ## 5. 注释顺序
+  ## 5. Annotation order
   observed.annotations <- unique(
     plot.data$Annotation
   )
@@ -118,7 +118,7 @@ plot_chromHMM_enrichment <- function(
     setdiff(observed.annotations, annotation.order)
   )
 
-  ## 6. 转换因子并截断绘图效应值
+  ## 6. Convert to factors and truncate the plotted effect sizes
   plot.data <- plot.data %>%
     mutate(
       Time = factor(
@@ -131,23 +131,23 @@ plot_chromHMM_enrichment <- function(
         levels = cluster.order
       ),
 
-      ## rev使annotation.order第一个显示在最上面
+      ## rev puts the first entry of annotation.order at the top
       Annotation = factor(
         Annotation,
         levels = rev(annotation.order)
       ),
 
-      ## 只影响绘图颜色，不修改原始效应量
+      ## Affects only the plotted colours, not the original effect sizes
       effect_plot = pmax(
         pmin(effect_raw, color.limit),
         -color.limit
       )
     )
 
-  ## 7. 检查是否因水平不匹配产生NA
+  ## 7. Check for NAs introduced by mismatched factor levels
   if (any(is.na(plot.data$Cluster))) {
     stop(
-      "Cluster因子转换后出现NA，请检查cluster.order。原始值为：",
+      "NA produced after converting Cluster to a factor; check cluster.order. Original values: ",
       paste(
         unique(enrichment.data$Cluster),
         collapse = ", "
@@ -157,7 +157,7 @@ plot_chromHMM_enrichment <- function(
 
   if (any(is.na(plot.data$Time))) {
     stop(
-      "Time因子转换后出现NA，请检查time.order。原始值为：",
+      "NA produced after converting Time to a factor; check time.order. Original values: ",
       paste(
         unique(enrichment.data$Time),
         collapse = ", "
@@ -167,7 +167,7 @@ plot_chromHMM_enrichment <- function(
 
   if (any(is.na(plot.data$Annotation))) {
     stop(
-      "Annotation因子转换后出现NA，请检查annotation.order。原始值为：",
+      "NA produced after converting Annotation to a factor; check annotation.order. Original values: ",
       paste(
         unique(enrichment.data$Annotation),
         collapse = ", "
@@ -175,7 +175,7 @@ plot_chromHMM_enrichment <- function(
     )
   }
 
-  ## 8. 显著性标记
+  ## 8. Significance markers
   plot.data <- plot.data %>%
     mutate(
       significance = case_when(
@@ -198,7 +198,7 @@ plot_chromHMM_enrichment <- function(
       )
     )
 
-  ## 使用ASCII字符，避免PDF字体警告
+  ## Use ASCII characters to avoid PDF font warnings
   legend.breaks <- c(
     -color.limit,
     -color.limit / 2,
