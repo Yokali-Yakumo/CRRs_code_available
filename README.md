@@ -1,7 +1,12 @@
 # CRRs_code_available
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23799336.svg)](https://doi.org/10.5281/zenodo.23799336)
+
 Code for **Context-dependent H3K27me3 remodeling reveals a transitional
 chromatin state during adipogenic differentiation**.
+
+Archived on Zenodo: [10.5281/zenodo.23799336](https://doi.org/10.5281/zenodo.23799336)
+(concept DOI, always resolves to the latest release).
 
 ## Layout
 
@@ -66,6 +71,23 @@ the manuscript.
 
 `environment.yml` (R 4.4.3, Python 3.12) with the versions of the main packages
 used for the manuscript.
+
+## Citation
+
+If you use this code, please cite the archived version:
+
+> Zhang, T.-P., Guo, Y. & Yang, T.-L. *Analysis code for: Context-dependent
+> H3K27me3 remodeling reveals a transitional chromatin state during adipogenic
+> differentiation* (v1.0.0). Zenodo
+> <https://doi.org/10.5281/zenodo.23799336> (2026).
+
+`10.5281/zenodo.23799336` is the concept DOI and always resolves to the newest
+release; release v1.0.0 is also addressable directly as
+`10.5281/zenodo.23799337`. Machine-readable metadata is in `CITATION.cff`.
+
+## Licence
+
+MIT — see `LICENSE`.
 
 ## Contact
 
