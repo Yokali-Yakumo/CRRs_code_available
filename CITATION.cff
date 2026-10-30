@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: "If you use this code, please cite it as below."
+title: "Analysis code for: Context-dependent H3K27me3 remodeling reveals a transitional chromatin state during adipogenic differentiation"
+abstract: "Analysis code for a CRR (contiguous repressive region) framework that defines broad H3K27me3 domains from binarised 200-bp genome-wide signal, integrates them with chromatin accessibility and histone modifications, and resolves CRR states by MFA and graph clustering. Input data: GEO GSE346087."
+type: software
+version: 1.0.0
+date-released: "2026-10-30"
+license: MIT
+repository-code: "https://github.com/Yokali-Yakumo/CRRs_code_available"
+url: "https://github.com/Yokali-Yakumo/CRRs_code_available"
+keywords:
+  - H3K27me3
+  - Polycomb
+  - adipogenesis
+  - chromatin domains
+  - ChIP-seq
+  - epigenomics
+authors:
+  - family-names: Zhang
+    given-names: Tian-Pei
+    affiliation: "Xi'an Jiaotong University"
+  - family-names: Guo
+    given-names: Yan
+    affiliation: "Xi'an Jiaotong University"
+  - family-names: Yang
+    given-names: Tie-Lin
+    affiliation: "Xi'an Jiaotong University"

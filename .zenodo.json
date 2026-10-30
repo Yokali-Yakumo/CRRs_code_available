@@ -1,0 +1,39 @@
+{
+  "title": "Analysis code for: Context-dependent H3K27me3 remodeling reveals a transitional chromatin state during adipogenic differentiation",
+  "description": "<p>Analysis code accompanying the manuscript <em>Context-dependent H3K27me3 remodeling reveals a transitional chromatin state during adipogenic differentiation</em>.</p><p>The repository contains the CRR (contiguous repressive region) framework used to define broad H3K27me3 domains from binarised 200-bp genome-wide signal: bin stitching, the length-threshold sensitivity analysis, cross-stage merging, feature construction, QC and standardisation, MFA, graph-based clustering, and the corresponding sensitivity analyses. It also contains the plotting code for the main figures (Fig. 1-6) and the downstream tools for CRR-to-gene assignment, matched control regions and burden regression.</p><p>Input data are deposited at GEO under accession GSE346087 and are not redistributed in this repository; <code>pipeline/scripts/01_geo_matrices_to_pipeline_input.sh</code> converts the GEO deposit into the layout the pipeline expects.</p>",
+  "creators": [
+    {
+      "name": "Zhang, Tian-Pei",
+      "affiliation": "Xi'an Jiaotong University"
+    },
+    {
+      "name": "Guo, Yan",
+      "affiliation": "Xi'an Jiaotong University"
+    },
+    {
+      "name": "Yang, Tie-Lin",
+      "affiliation": "Xi'an Jiaotong University"
+    }
+  ],
+  "keywords": [
+    "H3K27me3",
+    "Polycomb",
+    "adipogenesis",
+    "chromatin domains",
+    "ChIP-seq",
+    "epigenomics",
+    "CRR",
+    "R"
+  ],
+  "license": "mit",
+  "upload_type": "software",
+  "access_right": "open",
+  "language": "eng",
+  "related_identifiers": [
+    {
+      "identifier": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE346087",
+      "relation": "isSupplementedBy",
+      "resource_type": "dataset"
+    }
+  ]
+}
